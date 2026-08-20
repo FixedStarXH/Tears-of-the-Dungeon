@@ -18,6 +18,7 @@ const Game = {
   victoryTimer: 0,
   toastTimer: 0,
   bot: { on: false },
+  banner: null,
 };
 
 // ================= 生命周期 =================
@@ -38,7 +39,7 @@ function startGame(seed) {
 }
 
 // 每层 Boss 池（两选一）
-const BOSS_POOLS = { 1: ['monstro', 'duke'], 2: ['larry', 'mom'], 3: ['gurdy', 'mom'] };
+const BOSS_POOLS = { 1: ['monstro', 'duke'], 2: ['larry', 'chub'], 3: ['gurdy', 'monstro2'] };
 function buildFloor(floor) {
   Game.dungeon = Dungeon.generate(floor);
   Game.floor = floor;
@@ -46,6 +47,9 @@ function buildFloor(floor) {
   const byKey = {};
   for (const r of Game.dungeon.rooms) byKey[r.x + ',' + r.y] = r;
   Game.dungeon.byKey = byKey;
+  // 楼层横幅（进层大标题）
+  const FLOOR_NAMES = ['', '地窖 · BASEMENT', '洞穴 · CAVES', '深渊 · DEPTHS'];
+  Game.banner = { text: FLOOR_NAMES[floor] || '第 ' + floor + ' 层', t: 0, dur: 2.6 };
   // Boss 池两选一：优先整局未见过的 Boss（保证层内不重复遇到）
   const pool = BOSS_POOLS[clamp(floor, 1, 3)];
   const seen = Game.bossesSeen || (Game.bossesSeen = []);
@@ -106,7 +110,10 @@ function enterRoom(room) {
   Art.bakeRoomStatic(room);
   // 生成敌人（已清空的房间不会重新生成）
   if (!room.cleared) {
+    let visCount = 0; // vis 巨眼怪每房最多 1 只（激光房太强）
     for (const et of room.enemies) {
+      if (et === 'vis' && visCount >= 1) continue;
+      if (et === 'vis') visCount++;
       const c = Dungeon.randomFreeCell(room, null, true);
       const { x, y } = cellCenter(c.gx, c.gy);
       const e = Entities.createEnemy(et, x, y, Game.floor);
@@ -171,6 +178,7 @@ function updateGame(dt) {
       Entities.updateTears(dt);
       Entities.updateEnemies(dt);
       Entities.updateBosses(dt);
+      Entities.updateBeams(dt);
       updatePickups(dt);
       updateChests(dt);
       updateShop(dt);
@@ -185,6 +193,10 @@ function updateGame(dt) {
       Game.toastTimer -= dt;
       if (Game.toastTimer <= 0) hideToast();
     }
+    if (Game.banner) {
+      Game.banner.t += dt;
+      if (Game.banner.t >= Game.banner.dur) Game.banner = null;
+    }
     if (Game.victoryTimer > 0) {
       Game.victoryTimer -= dt;
       if (Game.victoryTimer <= 0) showVictory();
@@ -197,6 +209,19 @@ function updateGame(dt) {
 
 function updatePickups(dt) {
   const p = Game.player;
+  // 磁铁：金币/钥匙/炸弹/红心被磁吸向玩家（道具基座与活板门不受影响）
+  if (p.magneto) {
+    for (const pk of Game.pickups) {
+      if (!pk || pk.type === 'item' || pk.type === 'trapdoor') continue;
+      const d = dist(pk.x, pk.y, p.x, p.y);
+      if (d < 150 && d > 1) {
+        const a = angleTo(pk.x, pk.y, p.x, p.y);
+        const pull = Math.min(340 * dt, d);
+        pk.x += Math.cos(a) * pull;
+        pk.y += Math.sin(a) * pull;
+      }
+    }
+  }
   for (let i = Game.pickups.length - 1; i >= 0; i--) {
     const pk = Game.pickups[i];
     if (!pk) continue; // 收集过程中可能重置了 pickups（如踩活板门进入下一层）
@@ -460,6 +485,8 @@ function renderGame(ctx) {
     ctx.fillStyle = `rgba(200,30,20,${Game.player.hurtFlash * 0.8})`;
     ctx.fillRect(0, 0, W, H);
   }
+  // 楼层横幅
+  drawFloorBanner(ctx);
   // HUD
   if (Game.state === 'playing' || Game.state === 'paused') {
     Art.drawHUD(ctx, Game.player, Game.stats);
@@ -478,6 +505,30 @@ function renderGame(ctx) {
   // 后处理：暗角 + 胶片颗粒（预生成噪点，随机偏移平铺）
   drawVignette(ctx);
   drawGrain(ctx);
+}
+
+// 楼层横幅：进层大标题（淡入 → 保持 → 淡出）
+function drawFloorBanner(ctx) {
+  const b = Game.banner;
+  if (!b) return;
+  const k = clamp(b.t / b.dur, 0, 1);
+  const alpha = Math.min(1, b.t / 0.3, (b.dur - b.t) / 0.5);
+  if (alpha <= 0) return;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(0, H * 0.32, W, 64);
+  ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+  ctx.font = 'bold 30px serif';
+  ctx.strokeStyle = '#1a0a06';
+  ctx.lineWidth = 5;
+  ctx.strokeText(b.text, W / 2, H * 0.32 + 32);
+  ctx.fillStyle = '#e8d8b8';
+  ctx.fillText(b.text, W / 2, H * 0.32 + 32);
+  ctx.font = 'bold 12px sans-serif';
+  ctx.fillStyle = '#c8a878';
+  ctx.fillText('Tears of the Dungeon', W / 2, H * 0.32 + 54);
+  ctx.restore();
 }
 
 let _vignette = null;
@@ -564,6 +615,27 @@ function drawWorld(ctx, rm) {
   }
   // Boss 血条
   drawBossBar(ctx);
+  // 敌方激光（血激光 / 扫射）
+  if (Game.beams) {
+    for (const b of Game.beams) {
+      const x2 = b.x + Math.cos(b.angle) * b.len;
+      const y2 = b.y + Math.sin(b.angle) * b.len;
+      const fade = 1 - clamp(b.t / b.dur, 0, 1);
+      ctx.globalAlpha = fade;
+      ctx.lineCap = 'round';
+      ctx.strokeStyle = 'rgba(120,8,8,0.55)';
+      ctx.lineWidth = 26;
+      ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(x2, y2); ctx.stroke();
+      ctx.strokeStyle = `rgba(230,40,30,${0.95 * fade})`;
+      ctx.lineWidth = 11;
+      ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(x2, y2); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,220,200,0.9)';
+      ctx.lineWidth = 3.5;
+      ctx.beginPath(); ctx.moveTo(b.x, b.y); ctx.lineTo(x2, y2); ctx.stroke();
+      ctx.globalAlpha = 1;
+      ctx.lineCap = 'butt';
+    }
+  }
   // 玩家
   Art.drawPlayer(ctx, Game.player);
   // 眼泪
@@ -626,6 +698,9 @@ function drawEnemyCore(ctx, e) {
     case 'larry': Art.drawLarry(ctx, e); break;
     case 'gurdy': Art.drawGurdy(ctx, e); break;
     case 'momeye': Art.drawMomEye(ctx, e); break;
+    case 'vis': Art.drawVis(ctx, e); break;
+    case 'chub': Art.drawChub(ctx, e); break;
+    case 'monstro2': Art.drawMonstro2(ctx, e); break;
   }
 }
 
@@ -653,7 +728,7 @@ function drawBossBar(ctx) {
   ctx.fillStyle = '#ffd9c2';
   ctx.font = 'bold 11px sans-serif';
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-  ctx.fillText({ monstro: 'MONSTRO', duke: 'DUKE OF FLIES', mom: 'MOM' }[boss.type] || 'BOSS', W / 2, y - 10);
+  ctx.fillText({ monstro: 'MONSTRO', duke: 'DUKE OF FLIES', larry: 'LARRY JR', chub: 'CHUB', gurdy: 'GURDY', monstro2: 'MONSTRO II', mom: 'MOM' }[boss.type] || 'BOSS', W / 2, y - 10);
 }
 
 function rr2(ctx, x, y, w, h, r) {
