@@ -834,6 +834,155 @@ const Art = (function () {
     drawEnvelope(ctx, e);
   }
 
+  // Vis 巨眼怪：单颗巨眼，锁定蓄力时瞳孔充血发亮（发射血激光前兆）
+  function drawVis(ctx, e) {
+    drawEnemyShell(ctx, e);
+    const x = e.x, y = e.y, s = e.r / 16;
+    const charge = e.maw || 0;
+    const ang = Math.atan2(Game.player.y - y, Game.player.x - x);
+    shadow(ctx, x + 3, y + 5, e.r * 1.9, e.r * 0.8);
+    ctx.fillStyle = '#7a6a4a';
+    ctx.strokeStyle = '#2e2412';
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.arc(x, y, 17 * s, 0, TAU); ctx.fill(); ctx.stroke();
+    // 眼皮褶皱
+    ctx.strokeStyle = '#3a2e18';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, 13 * s, Math.PI * 0.15, Math.PI * 0.85); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, 13 * s, -Math.PI * 0.85, -Math.PI * 0.15); ctx.stroke();
+    // 眼球（蓄力时充血变红、瞳孔放大）
+    const bleed = Math.min(1, charge * 1.4);
+    ctx.fillStyle = bleed > 0.5 ? '#e8d8c0' : '#f2ecdc';
+    ctx.beginPath(); ctx.arc(x, y, 12 * s, 0, TAU); ctx.fill();
+    const ex = x + Math.cos(ang) * 3.5 * s;
+    const ey = y + Math.sin(ang) * 3.5 * s;
+    ctx.fillStyle = `rgb(${150 + bleed * 100},${40 - bleed * 20},${30 - bleed * 10})`;
+    ctx.beginPath(); ctx.arc(ex, ey, (7 + charge * 2.5) * s, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#20080a';
+    ctx.beginPath(); ctx.arc(ex, ey, (3.4 + charge * 1.8) * s, 0, TAU); ctx.fill();
+    // 蓄力时瞳孔高光 + 红色能量环
+    if (bleed > 0.3) {
+      ctx.fillStyle = 'rgba(255,255,255,0.85)';
+      ctx.beginPath(); ctx.arc(ex - 2 * s, ey - 2 * s, 1.6 * s, 0, TAU); ctx.fill();
+      ctx.strokeStyle = `rgba(255,50,30,${bleed * 0.8})`;
+      ctx.lineWidth = 2.5;
+      ctx.beginPath(); ctx.arc(x, y, (15 + charge * 6) * s, 0, TAU); ctx.stroke();
+    }
+    drawEnvelope(ctx, e);
+  }
+
+  // Chub 冲锋虫：虫头 + 3 段带刺身体，蓄力压缩、直冲甩头
+  function drawChub(ctx, e) {
+    drawEnemyShell(ctx, e);
+    const x = e.x, y = e.y;
+    const segs = e.segs || [];
+    const squash = e.squash || 0;
+    // 身体段（尾部→前部）
+    const colors = ['#a85038', '#8e3e2c', '#74301f'];
+    for (let i = segs.length - 1; i >= 1; i--) {
+      const sg = segs[i];
+      const r = 15 - i * 2.2;
+      ctx.fillStyle = colors[(i - 1) % colors.length];
+      ctx.strokeStyle = '#2a1008';
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(sg.x, sg.y, r, 0, TAU); ctx.fill(); ctx.stroke();
+      // 背刺
+      ctx.fillStyle = '#f2e0c0';
+      for (const [ox, oy, rot] of [[-5, -r, -0.5], [5, -r, 0.5]]) {
+        ctx.save();
+        ctx.translate(sg.x + ox, sg.y + oy);
+        ctx.rotate(rot);
+        ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(3, -7); ctx.lineTo(-3, -7); ctx.closePath(); ctx.fill();
+        ctx.restore();
+      }
+    }
+    // 头部（蓄力压缩变扁、冲刺时拉长）
+    const headW = (1 + Math.max(0, squash) * 0.35) * 22;
+    const headH = (1 - Math.max(0, squash) * 0.25) * 22;
+    ctx.fillStyle = '#c05a40';
+    ctx.strokeStyle = '#2a1008';
+    ctx.lineWidth = 4;
+    ctx.beginPath(); ctx.ellipse(x, y, headW, headH, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    // 血盆大口（朝向玩家）
+    const fa = Math.atan2(Game.player.y - y, Game.player.x - x);
+    const mx = x + Math.cos(fa) * 13, my = y + Math.sin(fa) * 13;
+    const maw = e.squash < 0 ? 1 : 0.35 + Math.max(0, squash) * 0.6;
+    ctx.fillStyle = '#3a0804';
+    ctx.beginPath(); ctx.ellipse(mx, my, 12 * maw, 9 * maw, fa, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#f2efe6';
+    ctx.strokeStyle = '#2a1008';
+    ctx.lineWidth = 1.5;
+    for (let i = -2; i <= 2; i++) {
+      ctx.save();
+      ctx.translate(mx + Math.cos(fa + Math.PI / 2) * i * 4, my + Math.sin(fa + Math.PI / 2) * i * 4);
+      ctx.rotate(fa);
+      ctx.beginPath(); ctx.moveTo(-3, -2); ctx.lineTo(0, 5); ctx.lineTo(3, -2); ctx.closePath(); ctx.fill(); ctx.stroke();
+      ctx.restore();
+    }
+    // 小眼睛
+    const ex0 = x + Math.cos(fa - 0.7) * 12, ey0 = y + Math.sin(fa - 0.7) * 12;
+    const ex1 = x + Math.cos(fa + 0.7) * 12, ey1 = y + Math.sin(fa + 0.7) * 12;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(ex0, ey0, 3.5, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(ex1, ey1, 3.5, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#1a0a06';
+    ctx.beginPath(); ctx.arc(ex0, ey0, 1.7, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(ex1, ey1, 1.7, 0, TAU); ctx.fill();
+    drawEnvelope(ctx, e);
+  }
+
+  // Monstro II：巨型肉山，血盆大口 + 满口獠牙，跳压/扫射时神态狰狞
+  function drawMonstro2(ctx, e) {
+    drawEnemyShell(ctx, e);
+    const x = e.x, y = e.y, s = e.r / 30;
+    const squash = e.squash || 0;
+    const bw = 32 * s * (1 + squash * 0.4), bh = 32 * s * (1 - squash * 0.35);
+    shadow(ctx, x, y + bh * 0.2, bw, bh);
+    const enrage = e.hp < e.maxHp * 0.5;
+    ctx.fillStyle = enrage ? '#9a2c1e' : '#8a4232';
+    ctx.strokeStyle = '#2a0f06';
+    ctx.lineWidth = 5;
+    ctx.beginPath(); ctx.ellipse(x, y, bw / 2, bh / 2, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    // 背刺/角
+    ctx.fillStyle = '#f2dcc0';
+    for (const [ox, oy, rot] of [[-20, -22, -0.7], [0, -26, 0], [20, -22, 0.7]]) {
+      ctx.save();
+      ctx.translate(x + ox * s, y + oy * s);
+      ctx.rotate(rot);
+      ctx.beginPath(); ctx.moveTo(-4, 6); ctx.lineTo(0, -12); ctx.lineTo(4, 6); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+    // 眼睛（怒视）
+    const gx = clamp((Game.player.x - x) * 0.08, -4, 4) * s;
+    ctx.fillStyle = '#fff';
+    ctx.beginPath(); ctx.arc(x - 10 * s + gx, y - 12 * s, 5.5 * s, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 10 * s + gx, y - 12 * s, 5.5 * s, 0, TAU); ctx.fill();
+    ctx.fillStyle = enrage ? '#c02010' : '#1a0a06';
+    ctx.beginPath(); ctx.arc(x - 10 * s + gx * 1.6, y - 12 * s, 2.8 * s, 0, TAU); ctx.fill();
+    ctx.beginPath(); ctx.arc(x + 10 * s + gx * 1.6, y - 12 * s, 2.8 * s, 0, TAU); ctx.fill();
+    // 血盆大口（扫射激光时完全张开）
+    const maw = e.maw || 0.6;
+    ctx.fillStyle = '#3a0604';
+    ctx.beginPath(); ctx.ellipse(x, y + 8 * s, 22 * s * maw, 16 * s * maw, 0, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#f2efe6';
+    ctx.strokeStyle = '#2a0f06';
+    ctx.lineWidth = 2;
+    for (let i = -8; i <= 8; i++) {
+      ctx.beginPath();
+      ctx.moveTo(x + i * 2.6 * s - 1.2 * s, y + (4 - 15 * maw) * s);
+      ctx.lineTo(x + i * 2.6 * s, y + (10 - 7 * maw) * s);
+      ctx.lineTo(x + i * 2.6 * s + 1.2 * s, y + (4 - 15 * maw) * s);
+      ctx.closePath(); ctx.fill(); ctx.stroke();
+    }
+    // 扫射蓄力红光
+    if (maw > 0.85) {
+      ctx.strokeStyle = `rgba(255,60,30,${0.35 + Math.sin(Game.time * 18) * 0.2})`;
+      ctx.lineWidth = 3;
+      ctx.beginPath(); ctx.arc(x, y, (e.r + 8) * (1 + (maw - 0.85) * 0.5), 0, TAU); ctx.stroke();
+    }
+    drawEnvelope(ctx, e);
+  }
+
   // ---------- 眼泪 ----------
   function drawTear(ctx, t) {
     if (t.owner === 'enemy') {
@@ -1212,6 +1361,61 @@ const Art = (function () {
         ctx.beginPath(); ctx.arc(-s * 0.16, -s * 0.12, s * 0.2, 0, TAU); ctx.fill();
         ctx.beginPath(); ctx.arc(s * 0.14, s * 0.2, s * 0.15, 0, TAU); ctx.fill();
         break;
+      case 'twenty': // 20/20：两颗并排眼泪
+        ctx.beginPath(); ctx.arc(-s * 0.28, 0, s * 0.3, 0, TAU); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(s * 0.28, 0, s * 0.3, 0, TAU); ctx.fill(); ctx.stroke();
+        break;
+      case 'spider': // 突变蜘蛛：小蜘蛛 + 多腿
+        ctx.beginPath(); ctx.arc(0, 0, s * 0.45, 0, TAU); ctx.fill(); ctx.stroke();
+        ctx.strokeStyle = c; ctx.lineWidth = 2;
+        for (let i = 0; i < 4; i++) {
+          const a0 = (i / 4) * TAU + Math.PI / 8;
+          ctx.beginPath(); ctx.moveTo(0, 0);
+          ctx.lineTo(Math.cos(a0) * s * 0.85, Math.sin(a0) * s * 0.85); ctx.stroke();
+        }
+        ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(-s * 0.12, -s * 0.1, s * 0.09, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(s * 0.12, -s * 0.1, s * 0.09, 0, TAU); ctx.fill();
+        break;
+      case 'loki': // 洛基之角：向四角的角
+        ctx.beginPath(); ctx.arc(0, 0, s * 0.45, 0, TAU); ctx.fill(); ctx.stroke();
+        for (const d of [Math.PI / 4, 3 * Math.PI / 4, 5 * Math.PI / 4, 7 * Math.PI / 4]) {
+          ctx.beginPath(); ctx.moveTo(0, 0);
+          ctx.lineTo(Math.cos(d) * s * 0.85, Math.sin(d) * s * 0.85);
+          ctx.quadraticCurveTo(Math.cos(d + 0.5) * s * 0.95, Math.sin(d + 0.5) * s * 0.95, Math.cos(d) * s * 0.6, Math.sin(d) * s * 0.6);
+          ctx.closePath(); ctx.fill(); ctx.stroke();
+        }
+        break;
+      case 'moms': // 妈妈的爱抚：手掌
+        ctx.beginPath(); ctx.arc(0, 0, s * 0.55, 0, TAU); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = '#8a5a3a';
+        for (let i = -1; i <= 1; i++) {
+          ctx.save();
+          ctx.translate(i * s * 0.22, s * 0.2);
+          ctx.rotate(i * 0.25);
+          ctx.beginPath(); ctx.ellipse(0, -s * 0.32, s * 0.09, s * 0.22, 0, 0, TAU); ctx.fill();
+          ctx.restore();
+        }
+        break;
+      case 'magnet': // 磁铁：U 形磁铁
+        ctx.strokeStyle = c; ctx.lineWidth = s * 0.22; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.arc(0, s * 0.1, s * 0.5, Math.PI * 1.05, Math.PI * 1.95); ctx.stroke();
+        ctx.fillStyle = '#d04038'; ctx.fillRect(-s * 0.55, s * 0.12, s * 0.3, s * 0.2);
+        ctx.fillStyle = '#38a0d0'; ctx.fillRect(s * 0.25, s * 0.12, s * 0.3, s * 0.2);
+        ctx.lineCap = 'butt';
+        break;
+      case 'ouija': // 通灵板：幽灵 + 板
+        ctx.beginPath(); ctx.arc(0, 0, s * 0.55, 0, TAU); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.beginPath(); ctx.arc(0, 0, s * 0.34, 0, TAU); ctx.fill();
+        ctx.fillStyle = '#222';
+        ctx.beginPath(); ctx.arc(-s * 0.11, -s * 0.06, s * 0.06, 0, TAU); ctx.fill();
+        ctx.beginPath(); ctx.arc(s * 0.11, -s * 0.06, s * 0.06, 0, TAU); ctx.fill();
+        break;
+      case 'proptosis': // 下垂症：由大到小渐弱眼泪
+        ctx.fillStyle = c; ctx.beginPath(); ctx.arc(-s * 0.3, 0, s * 0.34, 0, TAU); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(s * 0.15, 0, s * 0.22, 0, TAU); ctx.fill(); ctx.stroke();
+        ctx.beginPath(); ctx.arc(s * 0.45, 0, s * 0.13, 0, TAU); ctx.fill(); ctx.stroke();
+        break;
       default:
         ctx.beginPath(); ctx.arc(0, 0, s * 0.6, 0, TAU); ctx.fill(); ctx.stroke();
     }
@@ -1338,7 +1542,9 @@ const Art = (function () {
     ctx.strokeStyle = '#3a2c1c';
     ctx.lineWidth = 1.5;
     rr(ctx, x - 14, y + 2, 28, 13, 3); ctx.fill(); ctx.stroke();
-    ctx.fillStyle = '#ffd76a';
+    // 买不起时价格变红
+    const canAfford = (Game.stats.coins || 0) >= st.price;
+    ctx.fillStyle = canAfford ? '#ffd76a' : '#e05050';
     ctx.font = 'bold 10px sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.fillText('¢ ' + st.price, x, y + 9);
@@ -1351,6 +1557,7 @@ const Art = (function () {
     drawGaper, drawPooter, drawHorf, drawAttackFly, drawBoomFly, drawKnight,
     drawClotty, drawHopper, drawMaw, drawGlobin,
     drawMonstro, drawDuke, drawMomFoot, drawMomEye, drawLarry, drawGurdy,
+    drawVis, drawChub, drawMonstro2,
     drawItemIcon, drawHeart, drawMinimap, drawHUD,
   };
 })();
