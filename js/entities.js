@@ -14,7 +14,10 @@ const Entities = (function () {
       laser: false, triple: false, homing: false, pierce: false,
       bigTear: false, explosive: false, familiar: false,
       shield: false, shieldUp: false, wafer: false,
-      inv: 0, hurtFlash: 0, knockX: 0, knockY: 0,
+      // 参考原作新增效果位
+      brimstone: false, boomerang: false, bounce: 0, poison: 0,
+      revives: 0, orbital: 0, split: false, brimCharge: 0, orbitA: 0,
+      inv: 0, hurtFlash: 0, knockX: 0, knockY: 0, hitStun: 0,
       faceX: 1, faceY: 0, aimX: 1, aimY: 0, dead: false,
     };
   }
@@ -25,13 +28,20 @@ const Entities = (function () {
     p.aimX = Input.aimX;
     p.aimY = Input.aimY;
     // 移动输入（键盘 WASD / 摇杆 / BOT）
-    let mx = Input.moveX, my = Input.moveY;
+    const mx = Input.moveX, my = Input.moveY;
+    // 受击硬直：期间不读移动输入，让击退冲量真正生效（否则下一帧输入会把冲量抹平）
+    p.hitStun = Math.max(0, (p.hitStun || 0) - dt);
+    const stunned = p.hitStun > 0;
     if (p.knockX !== 0 || p.knockY !== 0) {
       const k = Math.exp(-6 * dt);
       p.knockX *= k; p.knockY *= k;
     }
-    p.vx = mx * p.speed + p.knockX;
-    p.vy = my * p.speed + p.knockY;
+    if (stunned) {
+      p.vx = p.knockX; p.vy = p.knockY;
+    } else {
+      p.vx = mx * p.speed + p.knockX;
+      p.vy = my * p.speed + p.knockY;
+    }
     p.x += p.vx * dt;
     p.y += p.vy * dt;
     collideWorld(p);
@@ -44,9 +54,37 @@ const Entities = (function () {
     }
     // 射击
     p.fireTimer -= dt;
-    if ((Math.abs(p.aimX) > 0.01 || Math.abs(p.aimY) > 0.01) && p.fireTimer <= 0) {
+    const aiming = Math.abs(p.aimX) > 0.01 || Math.abs(p.aimY) > 0.01;
+    if (p.brimstone) {
+      // 硫磺火：按住射击键蓄力，蓄满 0.62s 发射大激光
+      if (aiming) {
+        p.brimCharge = (p.brimCharge || 0) + dt;
+        if (p.brimCharge >= 0.62) {
+          p.brimCharge = 0;
+          fireBrimstone(p);
+          p.fireTimer = p.fireDelay / 60;
+        }
+      } else {
+        p.brimCharge = Math.max(0, (p.brimCharge || 0) - dt * 1.5);
+      }
+    } else if (aiming && p.fireTimer <= 0) {
       fire(p);
       p.fireTimer = p.fireDelay / 60;
+    }
+    // 环绕肉块：公转 + 接触伤害（可叠多个）
+    if (p.orbital > 0) {
+      p.orbitA = (p.orbitA || 0) + dt * 3.1;
+      for (let i = 0; i < p.orbital; i++) {
+        const oa = p.orbitA + (i / p.orbital) * TAU;
+        const ox = p.x + Math.cos(oa) * 42;
+        const oy = p.y + Math.sin(oa) * 42;
+        for (const e of Game.enemies) {
+          if (e.dead || e.spawnT > 0) continue;
+          if (circleHit(ox, oy, 10, e.x, e.y, e.r * 0.8)) {
+            hitEnemy(e, { dmg: p.damage * 0.7, pierce: true, vx: ox - e.x || 1, vy: oy - e.y || 1 });
+          }
+        }
+      }
     }
     // 尖刺伤害
     const rm0 = Game.currentRoom;
@@ -101,18 +139,40 @@ const Entities = (function () {
     const dmg = p.damage;
     const angles = p.triple ? [a - 0.16, a, a + 0.16] : [a];
     for (const ang of angles) {
+      // 严厉的爱：25% 概率射出三倍伤害的牙齿
+      const tooth = p.teeth && RNG() < 0.25;
       const t = {
         owner: 'player', x: p.x + Math.cos(ang) * (p.r + 4), y: p.y + Math.sin(ang) * (p.r + 4),
         vx: Math.cos(ang) * p.tearSpeed, vy: Math.sin(ang) * p.tearSpeed,
-        r: p.bigTear ? 12 : 6, dmg,
+        r: tooth ? 7 : (p.bigTear ? 12 : 6), dmg: tooth ? dmg * 3 : dmg,
         pierce: p.pierce || p.laser, homing: p.homing, explosive: p.explosive,
         laser: p.laser, h: 0,
+        boomerang: p.boomerang, bounce: p.bounce || 0, poison: p.poison || 0,
+        split: p.split, splitDone: false, returning: false, hit: new Set(),
+        coal: p.coal, kb: p.knockboost, tooth,
         traveled: 0, range: p.tearRange * (p.laser ? 1.6 : 1),
         dead: false,
       };
       Game.tears.push(t);
     }
     if (p.laser) Audio.laser(); else Audio.shoot();
+  }
+
+  // 硫磺火：蓄满后的大激光（贯穿 + 高伤）
+  function fireBrimstone(p) {
+    const a = Math.atan2(p.aimY, p.aimX);
+    const t = {
+      owner: 'player', x: p.x + Math.cos(a) * (p.r + 6), y: p.y + Math.sin(a) * (p.r + 6),
+      vx: Math.cos(a) * 640, vy: Math.sin(a) * 640,
+      r: 9, dmg: p.damage * 3, pierce: true, homing: false, explosive: false,
+      laser: true, brim: true, h: 0, boomerang: false, bounce: 0, poison: 0,
+      split: false, splitDone: false, returning: false, hit: new Set(),
+      traveled: 0, range: p.tearRange * 1.8,
+      dead: false,
+    };
+    Game.tears.push(t);
+    Audio.laser();
+    addShake(4, 0.12);
   }
 
   function updateTears(dt) {
@@ -140,6 +200,32 @@ const Entities = (function () {
       t.x += t.vx * dt; t.y += t.vy * dt;
       t.traveled += sp * dt;
       if (!t.laser) t.h += (sp * dt) / Math.max(1, t.range); // 弧线按射程比例推进
+      // 回旋（我的反射）：飞到 45% 距离后掉头朝玩家飞回
+      if (t.boomerang && !t.returning && t.traveled >= t.range * 0.45) {
+        t.returning = true;
+        t.range *= 1.6;
+        t.hit = new Set();
+      }
+      if (t.returning) {
+        const p0 = Game.player;
+        const a2 = angleTo(t.x, t.y, p0.x, p0.y);
+        const sp2 = Math.max(180, sp);
+        t.vx = lerp(t.vx, Math.cos(a2) * sp2, Math.min(1, 5 * dt));
+        t.vy = lerp(t.vy, Math.sin(a2) * sp2, Math.min(1, 5 * dt));
+        if (dist(t.x, t.y, p0.x, p0.y) < 22) { t.dead = true; continue; }
+      }
+      // 反弹（橡胶水泥）：撞墙反弹，清命中集并续命
+      if (t.bounce > 0) {
+        let bd = false;
+        if ((t.x < t.r && t.vx < 0) || (t.x > W - t.r && t.vx > 0)) { t.vx *= -1; bd = true; }
+        if ((t.y < t.r && t.vy < 0) || (t.y > H - t.r && t.vy > 0)) { t.vy *= -1; bd = true; }
+        if (bd) {
+          t.bounce--;
+          t.hit = new Set();
+          t.traveled -= t.range * 0.15;
+          burst(t.x, t.y, { count: 4, speed: 60, color: '#cfe8c8', size: 2, life: 0.25 });
+        }
+      }
       if (t.traveled >= t.range || (t.h >= 1 && !t.laser)) {
         tearHitWall(t, rm);
         continue;
@@ -157,8 +243,30 @@ const Entities = (function () {
         for (const e of Game.enemies) {
           if (e.dead || !circleHit(t.x, t.y, t.r, e.x, e.y, e.r)) continue;
           if (e.type === 'momeye') continue; // 眼睛免疫
+          if (t.hit && t.hit.has(e)) continue; // 已命中过的敌人不再重复伤害（贯穿/回旋）
           const hit = hitEnemy(e, t);
-          if (hit) { if (!t.pierce) { tearHitWall(t, rm); } break; }
+          if (hit) {
+            if (t.hit) t.hit.add(e);
+            // 寄生虫：命中后分裂成两个小眼泪（垂直方向弹开）
+            if (t.split && !t.splitDone && !t.dead) {
+              t.splitDone = true;
+              const a0 = Math.atan2(t.vy, t.vx) + Math.PI / 2;
+              const sp0 = Math.max(60, vecLen(t.vx, t.vy) * 0.7);
+              for (const sd of [-1, 1]) {
+                Game.tears.push({
+                  owner: 'player', x: t.x, y: t.y,
+                  vx: Math.cos(a0 + sd * 0.5) * sp0, vy: Math.sin(a0 + sd * 0.5) * sp0,
+                  r: Math.max(3, t.r * 0.6), dmg: t.dmg * 0.8,
+                  pierce: false, homing: false, explosive: false, laser: false, h: t.h,
+                  boomerang: false, bounce: 0, poison: 0, split: false, splitDone: true,
+                  returning: false, hit: null, traveled: 0, range: t.range * 0.8,
+                  dead: false,
+                });
+              }
+            }
+            if (!t.pierce) { tearHitWall(t, rm); }
+            break;
+          }
         }
       }
     }
@@ -195,14 +303,24 @@ const Entities = (function () {
         return true; // 弹开但不掉血
       }
     }
-    e.hp -= t.dmg;
+    let dmg = t.dmg;
+    // 煤块：眼泪飞得越远伤害越高（最高 +120%）
+    if (t.coal && t.range > 0) dmg *= 1 + (Math.min(t.traveled, t.range) / t.range) * 1.2;
+    e.hp -= dmg;
     e.hitFlash = 0.1;
     e.aggro = true;
     e.lastHurt = 0.3;
-    // 击退
+    // 中毒（感冒）：按 DPS 持续掉血
+    if (t.poison && t.poison > 0) {
+      e.poison = Math.max(e.poison || 0, 3);
+      e.poisonDps = Math.max(e.poisonDps || 0, t.poison);
+      burst(t.x, t.y, { count: 6, speed: 70, color: '#8ed060', size: 2, life: 0.5, gravity: 100 });
+    }
+    // 击退（铁棒：击退加强）
     const a = Math.atan2(t.vy, t.vx);
-    e.kx += Math.cos(a) * 40;
-    e.ky += Math.sin(a) * 40;
+    const kb = t.kb ? 2.2 : 1;
+    e.kx += Math.cos(a) * 40 * kb;
+    e.ky += Math.sin(a) * 40 * kb;
     burst(t.x, t.y, { count: 5, speed: 80, color: '#c83230', size: 2.5, life: 0.35, gravity: 200 });
     if (Game.currentRoom) Art.addStain(Game.currentRoom, t.x, t.y, false);
     stopHit(0.02);
@@ -212,6 +330,19 @@ const Entities = (function () {
 
   function enemyDie(e) {
     if (e.dead) return;
+    // 泥人：死而复活一次（变绿），第二次才真正死亡
+    if (e.type === 'globin' && !e.revived) {
+      e.revived = true;
+      e.hp = 1;
+      e.maxHp = 1;
+      e.invuln = 0.6;
+      e.hitFlash = 0;
+      e.spawnT = 0.4;
+      e.spawnMax = 0.4;
+      burst(e.x, e.y, { count: 16, speed: 140, color: '#8ed060', size: 3, life: 0.5, gravity: 250 });
+      Audio.kill();
+      return;
+    }
     e.dead = true;
     Game.stats.kills++;
     Audio.kill();
@@ -282,11 +413,24 @@ const Entities = (function () {
     p.hp -= dmg;
     p.inv = 0.8;
     p.hurtFlash = 0.15;
-    p.knockX = kx * 100; p.knockY = ky * 100;
+    // 击退冲量（归一化方向）+ 受击硬直，硬直期间输入被旁路 → 击退真正把人撞飞
+    const m = Math.hypot(kx, ky);
+    if (m > 0.001) { p.knockX = (kx / m) * 380; p.knockY = (ky / m) * 380; }
+    else { p.knockX = 0; p.knockY = 0; }
+    p.hitStun = 0.2;
     addShake(8, 0.2);
     Audio.hurt();
     burst(p.x, p.y, { count: 10, speed: 100, color: '#c83230', size: 3, life: 0.4, gravity: 300 });
     if (Game.currentRoom) Art.addStain(Game.currentRoom, p.x, p.y, false);
+    // 复活（1UP / 死猫）：1 心 + 长无敌 + 金色粒子
+    if (p.hp <= 0 && p.revives > 0) {
+      p.revives--;
+      p.hp = 2;
+      p.inv = 2.4;
+      burst(p.x, p.y, { count: 26, speed: 170, color: '#ffe8a0', size: 4, life: 0.8 });
+      Audio.item();
+      return;
+    }
     if (p.hp <= 0) {
       p.hp = 0;
       p.dead = true;
@@ -302,6 +446,11 @@ const Entities = (function () {
     attackfly: { hp: 1, r: 12, speed: 130, contact: 2, fly: true },
     boomfly: { hp: 2, r: 13, speed: 95, contact: 2, fly: true, boom: true },
     knight: { hp: 10, r: 15, speed: 40, contact: 2, fly: false, armor: true },
+    // 参考原作新增：血块(四向散射)/跳虫(蓄力突进)/血口(蓄力巨弹)/泥人(死而复活)
+    clotty: { hp: 5, r: 14, speed: 55, contact: 2, fly: false, fireCd: 2.6 },
+    hopper: { hp: 6, r: 13, speed: 95, contact: 2, fly: false },
+    maw: { hp: 12, r: 16, speed: 0, contact: 2, fly: false, fireCd: 3.2 },
+    globin: { hp: 4, r: 13, speed: 70, contact: 2, fly: false },
   };
 
   function createEnemy(type, x, y, floor) {
@@ -328,12 +477,19 @@ const Entities = (function () {
       e.hitFlash = Math.max(0, e.hitFlash - dt);
       e.lastHurt = Math.max(0, (e.lastHurt || 0) - dt);
       e.attackAnim = Math.max(0, e.attackAnim - dt * 2);
+      // 中毒持续伤害
+      if (e.poison > 0) {
+        e.poison -= dt;
+        e.hp -= (e.poisonDps || 1) * dt;
+        if (Math.random() < dt * 8) burst(e.x, e.y, { count: 2, speed: 40, color: '#8ed060', size: 2, life: 0.4 });
+        if (e.hp <= 0) { enemyDie(e); continue; }
+      }
       // 击退衰减
       const k = Math.exp(-4 * dt);
       e.kx *= k; e.ky *= k;
       updateEnemyAI(e, dt);
-      // 移动
-      if (e.type !== 'horf') {
+      // 移动（静止型敌人只受击退影响）
+      if (e.type !== 'horf' && e.type !== 'maw') {
         e.x += (e.vx + e.kx) * dt;
         e.y += (e.vy + e.ky) * dt;
         collideWorld(e);
@@ -436,27 +592,113 @@ const Entities = (function () {
         e.vy = 0;
         break;
       }
+      case 'clotty': {
+        // 缓慢追踪 + 周期性四向齐射（对角交叉弹幕）
+        e.vx = Math.cos(a) * e.speed;
+        e.vy = Math.sin(a) * e.speed;
+        e.fireTimer -= dt;
+        if (e.fireTimer <= 0 && d < 460) {
+          e.fireTimer = e.fireCd;
+          e.attackAnim = 1;
+          const base = a;
+          for (const da of [0.785, 2.356, 3.927, 5.498]) {
+            const ang = base + da;
+            Game.enemyTears.push({
+              x: e.x + Math.cos(ang) * 16, y: e.y + Math.sin(ang) * 16,
+              vx: Math.cos(ang) * 170, vy: Math.sin(ang) * 170, r: 5, dmg: 1, owner: 'enemy'
+            });
+          }
+          Audio.laserShoot();
+        }
+        break;
+      }
+      case 'hopper': {
+        // 状态机：游走 → 压缩蓄力 → 突进扑击
+        const st = e.ai.state || 'wander';
+        if (st === 'wander') {
+          e.ai.t -= dt;
+          e.squash = Math.max(0, (e.squash || 0) - dt * 2);
+          if (e.ai.t <= 0) {
+            e.ai.t = 0.32;
+            e.ai.state = 'crouch';
+          } else {
+            e.vx = Math.cos(e.ai.dir) * e.speed;
+            e.vy = Math.sin(e.ai.dir) * e.speed * 0.4;
+            if (e.x < 80 || e.x > W - 80) e.ai.dir = Math.PI - e.ai.dir;
+            if (e.y < 70 || e.y > H - 70) e.ai.dir = -e.ai.dir;
+          }
+        } else if (st === 'crouch') {
+          e.vx = 0; e.vy = 0;
+          e.squash = Math.min(1, (e.squash || 0) + dt * 3.4);
+          if (e.squash >= 1) {
+            e.ai.state = 'leap';
+            e.ai.t = 0.5;
+            e.vx = Math.cos(a) * 330;
+            e.vy = Math.sin(a) * 330;
+          }
+        } else { // leap：直线突进，撞墙/超时结束
+          e.ai.t -= dt;
+          e.squash = Math.max(0, (e.squash || 0) - dt * 4);
+          if (e.ai.t <= 0 || e.x < 70 || e.x > W - 70 || e.y < 60 || e.y > H - 60) {
+            e.ai.state = 'wander';
+            e.ai.t = rand(1.1, 2.1);
+            e.ai.dir = rand(0, TAU);
+            e.vx = 0; e.vy = 0;
+          }
+        }
+        break;
+      }
+      case 'maw': {
+        // 静止血口：长时间蓄力（张合动画）→ 巨型慢速血球
+        e.vx = 0; e.vy = 0;
+        e.fireTimer -= dt;
+        if (e.fireTimer <= -0.7) { // 蓄力完成发射
+          e.fireTimer = e.fireCd;
+          e.maw = 0.2;
+          e.attackAnim = 1;
+          const ang = a;
+          Game.enemyTears.push({
+            x: e.x + Math.cos(ang) * 18, y: e.y + Math.sin(ang) * 18,
+            vx: Math.cos(ang) * 115, vy: Math.sin(ang) * 115, r: 10, dmg: 2, owner: 'enemy'
+          });
+          Audio.bossRoar();
+        } else if (e.fireTimer > -0.7 && e.fireTimer <= 0 && d < 520) {
+          e.maw = Math.min(1, (e.maw || 0.2) + dt * 1.6); // 蓄力张合
+        }
+        break;
+      }
+      case 'globin': {
+        // 泥人：追踪玩家，死后原地复活一次（变绿）
+        e.vx = Math.cos(a) * e.speed;
+        e.vy = Math.sin(a) * e.speed;
+        break;
+      }
     }
   }
 
   // ================= Boss =================
   const BOSS_DEFS = {
-    monstro: { hp: 60, r: 30 },
-    duke: { hp: 80, r: 26 },
-    mom: { hp: 120, r: 26 },
+    monstro: { hp: 60, r: 30, contact: 2 },
+    duke: { hp: 80, r: 26, contact: 2 },
+    mom: { hp: 120, r: 26, contact: 2 },
+    larry: { hp: 70, r: 20, contact: 2 },
+    gurdy: { hp: 110, r: 42, contact: 1 },
   };
 
   function createBoss(type, x, y) {
     const d = BOSS_DEFS[type] || BOSS_DEFS.monstro;
-    return {
+    const b = {
       type, x, y, vx: 0, vy: 0,
-      r: d.r, hp: d.hp, maxHp: d.hp,
+      r: d.r, hp: d.hp, maxHp: d.hp, contact: d.contact || 2,
       kx: 0, ky: 0, hitFlash: 0, spawnT: 0.9, spawnMax: 0.9,
       aggro: true, dead: false, isBoss: true, seed: Math.random() * 10,
       squash: 0, maw: 0.6, stretch: 0, warningX: 0, warning: false,
-      groundY: y, facing: 1,
-      ai: { state: 'idle', t: 0, burst: 0, g: 800 },
+      groundY: y, facing: 1, segs: [], revived: false,
+      ai: { state: 'idle', t: 0, burst: 0, g: 800, dir: rand(0, TAU) },
     };
+    // Boss 专属初始布局
+    if (type === 'gurdy') { b.groundY = H / 2; b.x = W - 56; }
+    return b;
   }
 
   function updateBosses(dt) {
@@ -472,12 +714,87 @@ const Entities = (function () {
         case 'monstro': updateMonstro(e, dt); break;
         case 'duke': updateDuke(e, dt); break;
         case 'mom': updateMom(e, dt); break;
+        case 'larry': updateLarry(e, dt); break;
+        case 'gurdy': updateGurdy(e, dt); break;
       }
       e.x += (e.vx + e.kx) * dt;
       e.y += (e.vy + e.ky) * dt;
-      // 接触伤害
-      if (circleHit(e.x, e.y, e.r * 0.85, Game.player.x, Game.player.y, Game.player.r - 2)) {
-        damagePlayer(2, (Game.player.x - e.x) * 0.05, (Game.player.y - e.y) * 0.05);
+      // 接触伤害：仅攻击动作期生效（前摇/蓄力不伤人），Mom 靠踩击落地主动扣血
+      if (bossAggro(e) && circleHit(e.x, e.y, e.r * 0.85, Game.player.x, Game.player.y, Game.player.r - 2)) {
+        damagePlayer(e.contact, Game.player.x - e.x, Game.player.y - e.y);
+      }
+    }
+  }
+
+  // Boss 是否处于攻击动作期（接触才有伤害）
+  function bossAggro(e) {
+    switch (e.type) {
+      case 'monstro': // 跳跃中仅接近地面时伤人（空中掠过无害）
+        return e.ai.state === 'jump' && e.y >= e.groundY - 8;
+      case 'duke':    // 仅冲刺阶段
+        return e.ai.state === 'dash';
+      case 'mom':     // 本体踩击由 stomp 落地主动结算，常驻无接触伤害
+        return false;
+      case 'larry':   // 蠕虫整身始终是危险物
+        return true;
+      case 'gurdy':   // 站桩 Boss：本体缓慢，靠弹幕，接触小伤
+        return true;
+      default:
+        return true;
+    }
+  }
+
+  // ---- Larry Jr：分段蠕虫，随机游走 + 身体段接触伤害 ----
+  function updateLarry(e, dt) {
+    const p = Game.player;
+    const ai = e.ai;
+    ai.t -= dt;
+    if (ai.t <= 0) {
+      ai.t = rand(0.5, 1.1);
+      ai.dir = angleTo(e.x, e.y, p.x, p.y) + rand(-1, 1) * 1.7;
+    }
+    e.vx = Math.cos(ai.dir) * 135;
+    e.vy = Math.sin(ai.dir) * 135;
+    // 身体段跟随头部（蛇形）
+    const segs = e.segs;
+    if (!segs.length) for (let i = 0; i < 4; i++) segs.push({ x: e.x, y: e.y });
+    segs.unshift({ x: e.x, y: e.y });
+    segs.pop();
+    const gap = 20;
+    for (let i = 1; i < segs.length; i++) {
+      const pr = segs[i - 1], sg = segs[i];
+      const d = dist(sg.x, sg.y, pr.x, pr.y);
+      if (d > gap && d > 0.01) {
+        const a2 = angleTo(pr.x, pr.y, sg.x, sg.y);
+        sg.x = pr.x + Math.cos(a2) * gap;
+        sg.y = pr.y + Math.sin(a2) * gap;
+      }
+      // 身体段接触伤害
+      if (circleHit(sg.x, sg.y, 13, p.x, p.y, p.r - 2)) {
+        damagePlayer(1, p.x - sg.x, p.y - sg.y);
+      }
+    }
+  }
+
+  // ---- Gurdy：贴墙肉瘤墙，纵向摆动 + 周期性放射弹幕 ----
+  function updateGurdy(e, dt) {
+    const ai = e.ai;
+    ai.t -= dt;
+    e.vx = 0; e.vy = 0;
+    e.x = lerp(e.x, W - 56, Math.min(1, dt * 2.5));
+    e.y = e.groundY + Math.sin(Game.time * 0.9 + e.seed) * 46;
+    e.maw = Math.min(1, e.maw + dt * 0.4);
+    if (ai.t <= 0) {
+      ai.t = 2.6;
+      e.maw = 0.15;
+      e.attackAnim = 1;
+      Audio.bossRoar();
+      for (let i = 0; i < 10; i++) {
+        const ang = (i / 10) * TAU + Game.time * 0.6;
+        Game.enemyTears.push({
+          x: e.x + Math.cos(ang) * 26, y: e.y + Math.sin(ang) * 26,
+          vx: Math.cos(ang) * 125, vy: Math.sin(ang) * 125, r: 5, dmg: 1, owner: 'enemy'
+        });
       }
     }
   }

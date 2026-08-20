@@ -23,9 +23,11 @@ const Game = {
 // ================= 生命周期 =================
 function startGame(seed) {
   if (seed !== undefined) setSeed(seed);
+  Game.seed = seed !== undefined ? seed : ((Math.random() * 1e9) | 0);
   resetItemPool();
   Game.floor = 1;
   Game.stats = { kills: 0, itemsTaken: 0, coins: 0, keys: 0, startTime: performance.now() };
+  Game.bossesSeen = []; // 整局 Boss 记忆（池两选一）
   Game.time = 0;
   Game.state = 'playing';
   Game.familiar = null;
@@ -35,6 +37,8 @@ function startGame(seed) {
   enterRoom(Game.dungeon.start);
 }
 
+// 每层 Boss 池（两选一）
+const BOSS_POOLS = { 1: ['monstro', 'duke'], 2: ['larry', 'mom'], 3: ['gurdy', 'mom'] };
 function buildFloor(floor) {
   Game.dungeon = Dungeon.generate(floor);
   Game.floor = floor;
@@ -42,9 +46,16 @@ function buildFloor(floor) {
   const byKey = {};
   for (const r of Game.dungeon.rooms) byKey[r.x + ',' + r.y] = r;
   Game.dungeon.byKey = byKey;
+  // Boss 池两选一：优先整局未见过的 Boss（保证层内不重复遇到）
+  const pool = BOSS_POOLS[clamp(floor, 1, 3)];
+  const seen = Game.bossesSeen || (Game.bossesSeen = []);
+  const fresh = pool.filter((b) => !seen.includes(b));
+  const boss = fresh.length ? fresh[(Math.random() * fresh.length) | 0] : pool[(Math.random() * pool.length) | 0];
+  if (!seen.includes(boss)) seen.push(boss);
   for (const r of Game.dungeon.rooms) {
     r.dungeon = Game.dungeon;
     r.floor = floor;
+    if (r.type === 'boss') r.boss = boss;
   }
 }
 
@@ -121,7 +132,15 @@ function enterRoom(room) {
     const { x, y } = cellCenter(c.gx, c.gy);
     room.chestObj = { x, y, gold: chance(0.25) };
   }
-  Game.fade = 0.22;
+  // 商店货架实例化（道具预分配 itemId，价格与货物标在摊位上）
+  if (room.shopStalls) {
+    for (const st of room.shopStalls) {
+      const { x, y } = cellCenter(st.gx, st.gy);
+      st.x = x; st.y = y;
+      if (st.offer === 'item' && !st.itemId) st.itemId = takeItem();
+    }
+  }
+  Game.fade = 0.15; // 转场由推移动画主导，渐黑仅做柔和入场
 }
 
 function spawnEnemy(type, x, y) {
@@ -142,6 +161,11 @@ Game.spawnEnemy = spawnEnemy;
 function updateGame(dt) {
   if (Game.state === 'playing') {
     Game.time += dt;
+    // 房间切换推移动画（用真实 dt 推进，不受 hit-stop 冻结）
+    if (Game._trans) {
+      Game._trans.k += dt / Game._trans.dur;
+      if (Game._trans.k >= 1) { Game._trans = null; Game._transSnap = null; }
+    }
     if (!isStopped()) {
       Entities.updatePlayer(Game.player, dt);
       Entities.updateTears(dt);
@@ -149,6 +173,7 @@ function updateGame(dt) {
       Entities.updateBosses(dt);
       updatePickups(dt);
       updateChests(dt);
+      updateShop(dt);
       updateRoomLogic(dt);
       updateBot(dt);
     }
@@ -219,10 +244,48 @@ function updateChests(dt) {
     rm.chestOpened = true;
     Audio.item();
     burst(c.x, c.y, { count: 10, speed: 90, color: '#e8b93a', size: 2.5, life: 0.4 });
+    if (c.gold) {
+      // 金箱：必出道具 + 两枚金币
+      spawnPickup(c.x, c.y - 4, 'item');
+      spawnPickup(c.x - 14, c.y + 10, 'coin');
+      spawnPickup(c.x + 14, c.y + 10, 'coin');
+      return;
+    }
     const r = RNG();
     if (r < 0.42) spawnPickup(c.x, c.y, 'item');
     else if (r < 0.70) spawnPickup(c.x, c.y, chance(0.5) ? 'heart' : 'coin');
     else { spawnPickup(c.x - 10, c.y, 'coin'); spawnPickup(c.x + 10, c.y, 'key'); }
+  }
+}
+
+// 商店：碰到货架即购买（金币够则成交，否则提示）
+function updateShop(dt) {
+  const rm = Game.currentRoom;
+  if (!rm || !rm.shopStalls) return;
+  const p = Game.player;
+  for (const st of rm.shopStalls) {
+    if (st.sold) continue;
+    if (dist(p.x, p.y, st.x, st.y - 6) < 30) {
+      const coins = Game.stats.coins || 0;
+      if (coins >= st.price) {
+        Game.stats.coins -= st.price;
+        st.sold = true;
+        burst(st.x, st.y - 8, { count: 18, speed: 150, color: '#e7c351', size: 3, life: 0.5 });
+        if (st.offer === 'heart') {
+          p.maxHp += 2; p.hp = p.maxHp;
+          Audio.heart();
+          showToast(`买下了一颗心（-${st.price} 金币）`);
+        } else {
+          const it = applyItem(p, st.itemId);
+          Game.stats.itemsTaken++;
+          Audio.item();
+          if (it) showToast(`购买道具：${it.name}（${it.desc}）`);
+        }
+      } else if (!st.nagT || Game.time - st.nagT > 2) {
+        st.nagT = Game.time;
+        showToast(`金币不够（需要 ${st.price}，你有 ${coins}）`);
+      }
+    }
   }
 }
 
@@ -325,9 +388,22 @@ function checkDoors(dt) {
     const target = nb[(rm.x + dx) + ',' + (rm.y + dy)];
     if (!target) return;
     target.lastEnter = opp[dir];
+    startRoomTransition(dir); // 快照当前画面，播放推移动画
     enterRoom(target);
     return;
   }
+}
+
+// 房间切换：快照当前帧，新房间从行进方向对侧滑入
+const DIR_VEC = { up: [0, -1], down: [0, 1], left: [-1, 0], right: [1, 0] };
+function startRoomTransition(dir) {
+  const cv = Game._canvas;
+  if (!cv) return;
+  const snap = document.createElement('canvas');
+  snap.width = W; snap.height = H;
+  snap.getContext('2d').drawImage(cv, 0, 0);
+  Game._transSnap = snap;
+  Game._trans = { dir, k: 0, dur: 0.3 };
 }
 
 // ================= 游戏结束 / 胜利 =================
@@ -359,8 +435,88 @@ function renderGame(ctx) {
   const rm = Game.currentRoom;
   if (!rm) return;
   const so = shakeOffset();
+  // 房间切换：旧画面沿行进方向滑出，新房间从对侧滑入（cubic ease-out）
+  const tr = Game._trans;
+  if (tr && Game._transSnap) {
+    const k = 1 - Math.pow(1 - clamp(tr.k, 0, 1), 3);
+    const dv = DIR_VEC[tr.dir];
+    ctx.save();
+    ctx.translate(-dv[0] * W * k, -dv[1] * H * k);
+    ctx.drawImage(Game._transSnap, 0, 0);
+    ctx.restore();
+    ctx.save();
+    ctx.translate(dv[0] * W * (1 - k), dv[1] * H * (1 - k));
+    ctx.translate(so.x, so.y);
+    drawWorld(ctx, rm);
+    ctx.restore();
+  } else {
+    ctx.save();
+    ctx.translate(so.x, so.y);
+    drawWorld(ctx, rm);
+    ctx.restore();
+  }
+  // 受击红晕
+  if (Game.player && Game.player.hurtFlash > 0) {
+    ctx.fillStyle = `rgba(200,30,20,${Game.player.hurtFlash * 0.8})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+  // HUD
+  if (Game.state === 'playing' || Game.state === 'paused') {
+    Art.drawHUD(ctx, Game.player, Game.stats);
+    if (Game.dungeon) Art.drawMinimap(ctx, Game.dungeon, rm, Game.floor);
+  }
+  // 房间切换渐黑
+  if (Game.fade > 0) {
+    ctx.fillStyle = `rgba(0,0,0,${Math.min(1, Game.fade / 0.22)})`;
+    ctx.fillRect(0, 0, W, H);
+  }
+  // 暂停/死亡暗角
+  if (Game.state === 'dead' || Game.state === 'victory') {
+    ctx.fillStyle = 'rgba(0,0,0,0.4)';
+    ctx.fillRect(0, 0, W, H);
+  }
+  // 后处理：暗角 + 胶片颗粒（预生成噪点，随机偏移平铺）
+  drawVignette(ctx);
+  drawGrain(ctx);
+}
+
+let _vignette = null;
+function drawVignette(ctx) {
+  if (!_vignette) {
+    _vignette = ctx.createRadialGradient(W / 2, H / 2, H * 0.35, W / 2, H / 2, H * 0.78);
+    _vignette.addColorStop(0, 'rgba(0,0,0,0)');
+    _vignette.addColorStop(1, 'rgba(0,0,0,0.42)');
+  }
+  ctx.fillStyle = _vignette;
+  ctx.fillRect(0, 0, W, H);
+}
+
+let _grainCv = null;
+function drawGrain(ctx) {
+  if (!_grainCv) {
+    _grainCv = document.createElement('canvas');
+    _grainCv.width = 180; _grainCv.height = 180;
+    const g = _grainCv.getContext('2d');
+    const img = g.createImageData(180, 180);
+    for (let i = 0; i < img.data.length; i += 4) {
+      const v = (Math.random() * 255) | 0;
+      img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
+      img.data[i + 3] = 255;
+    }
+    g.putImageData(img, 0, 0);
+  }
   ctx.save();
-  ctx.translate(so.x, so.y);
+  ctx.globalAlpha = 0.05;
+  ctx.globalCompositeOperation = 'overlay';
+  const ox = (Math.random() * 60) | 0, oy = (Math.random() * 60) | 0;
+  for (let x = -ox; x < W; x += 180) {
+    for (let y = -oy; y < H; y += 180) ctx.drawImage(_grainCv, x, y);
+  }
+  ctx.restore();
+}
+
+// 世界层（受屏幕震动影响），不含 HUD 与遮罩
+function drawWorld(ctx, rm) {
   if (rm.static) ctx.drawImage(rm.static, 0, 0);
   Art.drawStains(ctx, rm);
   // 门
@@ -386,6 +542,8 @@ function renderGame(ctx) {
   if (rm.chestObj) Art.drawChest(ctx, rm.chestObj.x, rm.chestObj.y, rm.chestObj.gold);
   // 拾取物
   for (const pk of Game.pickups) Art.drawPickup(ctx, pk);
+  // 商店货架
+  if (rm.shopStalls) for (const st of rm.shopStalls) Art.drawShopStall(ctx, st);
   // 跟班
   if (Game.familiar) {
     const f = Game.familiar;
@@ -413,26 +571,6 @@ function renderGame(ctx) {
   for (const t of Game.enemyTears) Art.drawTear(ctx, t);
   drawParticles(ctx);
   ctx.restore();
-  // 受击红晕
-  if (Game.player && Game.player.hurtFlash > 0) {
-    ctx.fillStyle = `rgba(200,30,20,${Game.player.hurtFlash * 0.8})`;
-    ctx.fillRect(0, 0, W, H);
-  }
-  // HUD
-  if (Game.state === 'playing' || Game.state === 'paused') {
-    Art.drawHUD(ctx, Game.player, Game.stats);
-    if (Game.dungeon) Art.drawMinimap(ctx, Game.dungeon, rm, Game.floor);
-  }
-  // 房间切换渐黑
-  if (Game.fade > 0) {
-    ctx.fillStyle = `rgba(0,0,0,${Math.min(1, Game.fade / 0.22)})`;
-    ctx.fillRect(0, 0, W, H);
-  }
-  // 暂停/死亡暗角
-  if (Game.state === 'dead' || Game.state === 'victory') {
-    ctx.fillStyle = 'rgba(0,0,0,0.4)';
-    ctx.fillRect(0, 0, W, H);
-  }
 }
 
 function drawRock2(ctx, rk, floor) {
@@ -450,6 +588,27 @@ function drawRock2(ctx, rk, floor) {
 }
 
 function drawEnemy(ctx, e) {
+  // 具现化保护期：从地面升起 + 淡入 + 缩放 + 金色光环
+  if (e.spawnT > 0) {
+    const max = e.spawnMax || (e.isBoss ? 0.9 : 0.55);
+    const k = clamp(1 - e.spawnT / max, 0, 1);
+    ctx.save();
+    ctx.globalAlpha = clamp(k * 1.6, 0, 1);
+    ctx.translate(e.x, e.y + (1 - k) * 14);
+    const sc = 0.6 + k * 0.4;
+    ctx.scale(sc, sc);
+    ctx.translate(-e.x, -e.y);
+    drawEnemyCore(ctx, e);
+    ctx.restore();
+    ctx.strokeStyle = `rgba(255,220,180,${(1 - k) * 0.5})`;
+    ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(e.x, e.y, e.r * (1 + (1 - k) * 0.9), 0, TAU); ctx.stroke();
+    return;
+  }
+  drawEnemyCore(ctx, e);
+}
+
+function drawEnemyCore(ctx, e) {
   switch (e.type) {
     case 'gaper': Art.drawGaper(ctx, e); break;
     case 'pooter': Art.drawPooter(ctx, e); break;
@@ -457,9 +616,15 @@ function drawEnemy(ctx, e) {
     case 'attackfly': Art.drawAttackFly(ctx, e); break;
     case 'boomfly': Art.drawBoomFly(ctx, e); break;
     case 'knight': Art.drawKnight(ctx, e); break;
+    case 'clotty': Art.drawClotty(ctx, e); break;
+    case 'hopper': Art.drawHopper(ctx, e); break;
+    case 'maw': Art.drawMaw(ctx, e); break;
+    case 'globin': Art.drawGlobin(ctx, e); break;
     case 'monstro': Art.drawMonstro(ctx, e); break;
     case 'duke': Art.drawDuke(ctx, e); break;
     case 'mom': Art.drawMomFoot(ctx, e); break;
+    case 'larry': Art.drawLarry(ctx, e); break;
+    case 'gurdy': Art.drawGurdy(ctx, e); break;
     case 'momeye': Art.drawMomEye(ctx, e); break;
   }
 }
