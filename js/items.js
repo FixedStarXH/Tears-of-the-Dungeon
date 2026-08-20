@@ -22,6 +22,22 @@ const ITEMS = {
   ipecac:       { name: '吐根',       icon: 'bomb',     color: '#c8e060', stat: '爆炸',     desc: '眼泪落地爆炸（小心误伤自己）', effect(p) { p.explosive = true; p.damage += 2; p.fireDelay *= 1.4; } },
   soy_milk:     { name: '豆奶',       icon: 'milk',     color: '#e8e4da', stat: '射速 ↑↑↑', desc: '射速暴涨但单发伤害暴跌', effect(p) { p.fireDelay *= 0.24; p.damage = Math.max(0.4, p.damage * 0.4); } },
   brother_bobby:{ name: '鲍比兄弟',   icon: 'bobby',    color: '#d8ccb8', stat: '跟班',     desc: '灵魂跟班自动向敌人开火', effect(p) { p.familiar = true; } },
+  // ---- 参考原作新增 ----
+  brimstone:    { name: '硫磺火',     icon: 'brim',      color: '#c82820', stat: '激光',    desc: '按住射击键蓄力发射贯穿大激光', effect(p) { p.brimstone = true; p.damage += 1; } },
+  my_reflection:{ name: '我的反射',   icon: 'reflect',   color: '#d8c8a0', stat: '回旋',    desc: '眼泪飞到中途会飞回手中', effect(p) { p.boomerang = true; } },
+  rubber_cement:{ name: '橡胶水泥',   icon: 'rubber',    color: '#d86858', stat: '反弹',    desc: '眼泪撞墙后会反弹', effect(p) { p.bounce += 2; } },
+  common_cold:  { name: '感冒',       icon: 'cold',      color: '#7ec850', stat: '中毒',    desc: '眼泪使敌人中毒持续掉血', effect(p) { p.poison = 2.2; } },
+  parasite:     { name: '寄生虫',     icon: 'parasite',  color: '#d05878', stat: '分裂',    desc: '眼泪命中后分裂成两滴', effect(p) { p.split = true; } },
+  one_up:       { name: '1UP',        icon: 'oneup',     color: '#58d058', stat: '复活',    desc: '死亡时原地复活一次', effect(p) { p.revives += 1; } },
+  dead_cat:     { name: '死猫',       icon: 'deadcat',   color: '#e05848', stat: '复活 ×2', desc: '复活两次但生命上限降为 1 心', effect(p) { p.revives += 2; p.maxHp = 2; p.hp = 2; } },
+  cube_of_meat: { name: '肉块',       icon: 'cube',      color: '#c84a38', stat: '跟班',    desc: '环绕身边的肉块碰伤敌人', effect(p) { p.orbital += 1; } },
+  pentagram:    { name: '五芒星',     icon: 'penta',     color: '#a82020', stat: '攻击 ↑↑', desc: '大幅提升伤害，染上暗黑光环', effect(p) { p.damage += 1.5; p.aura = 'dark'; } },
+  iron_bar:     { name: '铁棒',       icon: 'iron',      color: '#8a8a92', stat: '攻击 ↑',  desc: '提升伤害，击退更强', effect(p) { p.damage += 0.8; p.knockboost = true; } },
+  the_mark:     { name: '恶魔印记',   icon: 'mark',      color: '#d02020', stat: '攻击+移速', desc: '提升伤害与移动速度', effect(p) { p.damage += 1.5; p.speed *= 1.1; } },
+  max_head:     { name: '马克斯之头', icon: 'maxhead',   color: '#d87838', stat: '攻击 ×1.5', desc: '伤害提升 1.5 倍', effect(p) { p.damage *= 1.5; } },
+  blood_clot:   { name: '血凝块',     icon: 'clot',      color: '#c03030', stat: '攻击+射程', desc: '提升伤害与射程', effect(p) { p.damage += 1; p.tearRange *= 1.15; } },
+  tough_love:   { name: '严厉的爱',   icon: 'tooth',     color: '#e8e4d8', stat: '牙齿',    desc: '25% 概率射出三倍伤害的牙齿', effect(p) { p.teeth = true; } },
+  lump_of_coal: { name: '煤块',       icon: 'coal',      color: '#4a4a52', stat: '渐强',    desc: '眼泪飞得越远伤害越高', effect(p) { p.coal = true; } },
 };
 
 const ITEM_LIST = Object.keys(ITEMS);
