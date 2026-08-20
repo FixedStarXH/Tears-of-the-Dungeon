@@ -131,6 +131,7 @@ const Dungeon = (function () {
     const base = ['gaper', 'pooter', 'attackfly', 'clotty', 'hopper'];
     if (floor >= 2) base.push('boomfly', 'horf');
     if (floor >= 3) base.push('knight', 'maw', 'globin');
+    if (floor >= 3) base.push('vis'); // 第 3 层起出现巨眼怪（每房上限 1 只在 enterRoom 控制）
     return base;
   }
 
