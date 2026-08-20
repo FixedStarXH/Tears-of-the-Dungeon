@@ -137,19 +137,36 @@ const Entities = (function () {
   function fire(p) {
     const a = Math.atan2(p.aimY, p.aimX);
     const dmg = p.damage;
-    const angles = p.triple ? [a - 0.16, a, a + 0.16] : [a];
-    for (const ang of angles) {
+    // 弹幕分配：洛基之角 25% 四向 / 突变蜘蛛四重 0.6x / 20/20 双发 0.9x / 三重射击
+    let shots = [];
+    if (p.loki && RNG() < 0.25) {
+      for (const d of [0, Math.PI / 2, Math.PI, -Math.PI / 2]) shots.push({ ang: a + d, mul: 1 });
+    } else {
+      const base = p.triple ? [a - 0.16, a, a + 0.16] : [a];
+      for (const b of base) {
+        if (p.quadShot) {
+          shots.push({ ang: b - 0.17, mul: 0.6 }, { ang: b + 0.17, mul: 0.6 }, { ang: b - 0.5, mul: 0.6 }, { ang: b + 0.5, mul: 0.6 });
+        } else if (p.doubleShot) {
+          shots.push({ ang: b - 0.07, mul: 0.9 }, { ang: b + 0.07, mul: 0.9 });
+        } else {
+          shots.push({ ang: b, mul: 1 });
+        }
+      }
+    }
+    for (const s of shots) {
+      const ang = s.ang;
       // 严厉的爱：25% 概率射出三倍伤害的牙齿
       const tooth = p.teeth && RNG() < 0.25;
       const t = {
         owner: 'player', x: p.x + Math.cos(ang) * (p.r + 4), y: p.y + Math.sin(ang) * (p.r + 4),
         vx: Math.cos(ang) * p.tearSpeed, vy: Math.sin(ang) * p.tearSpeed,
-        r: tooth ? 7 : (p.bigTear ? 12 : 6), dmg: tooth ? dmg * 3 : dmg,
+        r: tooth ? 7 : (p.bigTear ? 12 : 6), dmg: (tooth ? dmg * 3 : dmg) * s.mul,
         pierce: p.pierce || p.laser, homing: p.homing, explosive: p.explosive,
         laser: p.laser, h: 0,
         boomerang: p.boomerang, bounce: p.bounce || 0, poison: p.poison || 0,
         split: p.split, splitDone: false, returning: false, hit: new Set(),
         coal: p.coal, kb: p.knockboost, tooth,
+        slow: p.momsContact || 0, proptosis: p.proptosis, spectral: p.ouija,
         traveled: 0, range: p.tearRange * (p.laser ? 1.6 : 1),
         dead: false,
       };
@@ -234,8 +251,8 @@ const Entities = (function () {
       if (t.x < t.r || t.x > W - t.r || t.y < t.r || t.y > H - t.r) {
         tearHitWall(t, rm); continue;
       }
-      // 岩石
-      if (rm && rm.rocks.some((rk) => !rk.dead && circleHit(t.x, t.y, t.r, rk.x, rk.y, rk.r))) {
+      // 岩石（通灵板幽灵泪可穿过）
+      if (!t.spectral && rm && rm.rocks.some((rk) => !rk.dead && circleHit(t.x, t.y, t.r, rk.x, rk.y, rk.r))) {
         tearHitWall(t, rm); continue;
       }
       // 敌人碰撞
@@ -260,6 +277,7 @@ const Entities = (function () {
                   pierce: false, homing: false, explosive: false, laser: false, h: t.h,
                   boomerang: false, bounce: 0, poison: 0, split: false, splitDone: true,
                   returning: false, hit: null, traveled: 0, range: t.range * 0.8,
+                  slow: t.slow || 0, proptosis: t.proptosis, spectral: t.spectral,
                   dead: false,
                 });
               }
@@ -273,6 +291,21 @@ const Entities = (function () {
     // 玩家被敌弹击中
     for (let i = Game.enemyTears.length - 1; i >= 0; i--) {
       const t = Game.enemyTears[i];
+      // 制导（hush 系）：前 1.1 秒转向玩家，之后直线
+      if (t.homing && (t.age = (t.age || 0) + dt) < 1.1) {
+        const p0 = Game.player;
+        const a2 = angleTo(t.x, t.y, p0.x, p0.y);
+        const cur = Math.atan2(t.vy, t.vx);
+        const sp = vecLen(t.vx, t.vy) || 1;
+        const na = cur + clamp((((a2 - cur + Math.PI * 3) % TAU) - Math.PI) * t.homing * dt, -2.5 * dt, 2.5 * dt);
+        t.vx = Math.cos(na) * sp; t.vy = Math.sin(na) * sp;
+      }
+      // 弯弹（恒定角速度，形成弧线回流）
+      if (t.curve) {
+        const cur = Math.atan2(t.vy, t.vx) + t.curve * dt;
+        const sp = vecLen(t.vx, t.vy) || 1;
+        t.vx = Math.cos(cur) * sp; t.vy = Math.sin(cur) * sp;
+      }
       t.x += t.vx * dt; t.y += t.vy * dt;
       if (t.x < t.r || t.x > W - t.r || t.y < t.r || t.y > H - t.r) { Game.enemyTears.splice(i, 1); continue; }
       if (rm && rm.rocks.some((rk) => circleHit(t.x, t.y, t.r, rk.x, rk.y, rk.r))) { Game.enemyTears.splice(i, 1); continue; }
@@ -306,6 +339,8 @@ const Entities = (function () {
     let dmg = t.dmg;
     // 煤块：眼泪飞得越远伤害越高（最高 +120%）
     if (t.coal && t.range > 0) dmg *= 1 + (Math.min(t.traveled, t.range) / t.range) * 1.2;
+    // 下垂症：眼泪近处伤害高（起手 ×3），越飞越弱（最低 ×0.6）
+    if (t.proptosis && t.range > 0) dmg *= Math.max(0.6, 3 - (Math.min(t.traveled, t.range) / t.range) * 2.4);
     e.hp -= dmg;
     e.hitFlash = 0.1;
     e.aggro = true;
@@ -315,6 +350,11 @@ const Entities = (function () {
       e.poison = Math.max(e.poison || 0, 3);
       e.poisonDps = Math.max(e.poisonDps || 0, t.poison);
       burst(t.x, t.y, { count: 6, speed: 70, color: '#8ed060', size: 2, life: 0.5, gravity: 100 });
+    }
+    // 减速（妈妈的爱抚）
+    if (t.slow) {
+      e.slow = Math.max(e.slow || 0, 2.2);
+      burst(t.x, t.y, { count: 5, speed: 50, color: '#b0c8e0', size: 2, life: 0.45 });
     }
     // 击退（铁棒：击退加强）
     const a = Math.atan2(t.vy, t.vx);
@@ -451,6 +491,8 @@ const Entities = (function () {
     hopper: { hp: 6, r: 13, speed: 95, contact: 2, fly: false },
     maw: { hp: 12, r: 16, speed: 0, contact: 2, fly: false, fireCd: 3.2 },
     globin: { hp: 4, r: 13, speed: 70, contact: 2, fly: false },
+    // 参考原作新增：巨眼怪（蓄力锁定向血激光，每房最多 1 只）
+    vis: { hp: 14, r: 16, speed: 45, contact: 2, fly: false, fireCd: 2.6 },
   };
 
   function createEnemy(type, x, y, floor) {
@@ -459,7 +501,7 @@ const Entities = (function () {
     return {
       type, x, y, vx: 0, vy: 0,
       r: d.r, hp: Math.round(d.hp * hpScale), maxHp: Math.round(d.hp * hpScale),
-      speed: d.speed, contact: d.contact, fly: d.fly, boom: !!d.boom, armor: !!d.armor,
+      speed: d.speed, baseSpeed: d.speed, contact: d.contact, fly: d.fly, boom: !!d.boom, armor: !!d.armor,
       fireCd: d.fireCd || 0, fireTimer: rand(0.8, 1.8),
       kx: 0, ky: 0, hitFlash: 0, spawnT: 0.55, spawnMax: 0.55,
       aggro: false, dead: false, isBoss: false, seed: Math.random() * 10,
@@ -477,6 +519,9 @@ const Entities = (function () {
       e.hitFlash = Math.max(0, e.hitFlash - dt);
       e.lastHurt = Math.max(0, (e.lastHurt || 0) - dt);
       e.attackAnim = Math.max(0, e.attackAnim - dt * 2);
+      // 减速（妈妈的爱抚）：统一按 baseSpeed 折算，AI 读 e.speed 即生效
+      e.slow = Math.max(0, (e.slow || 0) - dt);
+      e.speed = e.baseSpeed * (e.slow > 0 ? 0.45 : 1);
       // 中毒持续伤害
       if (e.poison > 0) {
         e.poison -= dt;
@@ -673,6 +718,38 @@ const Entities = (function () {
         e.vy = Math.sin(a) * e.speed;
         break;
       }
+      case 'vis': {
+        // 巨眼怪：逼近 → 锁定蓄力 → 发射一道血激光（可侧闪）
+        const st = e.ai.state || 'chase';
+        if (st === 'chase') {
+          e.vx = Math.cos(a) * e.speed;
+          e.vy = Math.sin(a) * e.speed;
+          e.maw = Math.max(0, (e.maw || 0) - dt);
+          if (d < 330 && (e.ai.t || 0) <= 0) {
+            e.ai.state = 'charge';
+            e.ai.t = 0.85;
+            e.ai.lock = a;
+            e.vx = 0; e.vy = 0;
+          }
+        } else if (st === 'charge') {
+          e.vx = 0; e.vy = 0;
+          e.ai.t -= dt;
+          e.maw = Math.min(1, 1 - e.ai.t / 0.85); // 瞳孔发光蓄力
+          if (e.ai.t <= 0) {
+            spawnEnemyBeam(e.x, e.y, e.ai.lock, 980, 0.55);
+            Audio.bossRoar();
+            addShake(4, 0.15);
+            e.ai.state = 'recover';
+            e.ai.t = 2.2;
+            e.maw = 0;
+          }
+        } else { // recover：发射后短暂停歇
+          e.vx = 0; e.vy = 0;
+          e.ai.t -= dt;
+          if (e.ai.t <= 0) { e.ai.state = 'chase'; e.ai.t = rand(0.5, 1.2); }
+        }
+        break;
+      }
     }
   }
 
@@ -683,6 +760,9 @@ const Entities = (function () {
     mom: { hp: 120, r: 26, contact: 2 },
     larry: { hp: 70, r: 20, contact: 2 },
     gurdy: { hp: 110, r: 42, contact: 1 },
+    // 参考原作新增
+    chub: { hp: 90, r: 22, contact: 2 },
+    monstro2: { hp: 110, r: 30, contact: 2 },
   };
 
   function createBoss(type, x, y) {
@@ -698,6 +778,7 @@ const Entities = (function () {
     };
     // Boss 专属初始布局
     if (type === 'gurdy') { b.groundY = H / 2; b.x = W - 56; }
+    if (type === 'chub') b.segs = [];
     return b;
   }
 
@@ -716,6 +797,8 @@ const Entities = (function () {
         case 'mom': updateMom(e, dt); break;
         case 'larry': updateLarry(e, dt); break;
         case 'gurdy': updateGurdy(e, dt); break;
+        case 'chub': updateChub(e, dt); break;
+        case 'monstro2': updateMonstro2(e, dt); break;
       }
       e.x += (e.vx + e.kx) * dt;
       e.y += (e.vy + e.ky) * dt;
@@ -739,6 +822,10 @@ const Entities = (function () {
         return true;
       case 'gurdy':   // 站桩 Boss：本体缓慢，靠弹幕，接触小伤
         return true;
+      case 'chub':    // 仅冲刺阶段（蓄力前摇安全）
+        return e.ai.state === 'charge';
+      case 'monstro2': // 仅跳压落地瞬间
+        return e.ai.state === 'leapDown' && e.y >= e.groundY - 8;
       default:
         return true;
     }
@@ -795,6 +882,166 @@ const Entities = (function () {
           x: e.x + Math.cos(ang) * 26, y: e.y + Math.sin(ang) * 26,
           vx: Math.cos(ang) * 125, vy: Math.sin(ang) * 125, r: 5, dmg: 1, owner: 'enemy'
         });
+      }
+    }
+  }
+
+  // ---- Chub：冲锋大虫，横/纵对齐后蓄力冲刺 + 身体段接触 ----
+  function updateChub(e, dt) {
+    const p = Game.player;
+    const ai = e.ai;
+    const d = dist(e.x, e.y, p.x, p.y);
+    const a = angleTo(e.x, e.y, p.x, p.y);
+    switch (ai.state) {
+      case 'idle': { // 缓慢游走，横/纵对齐则蓄力
+        e.vx = Math.cos(a) * 95;
+        e.vy = Math.sin(a) * 95;
+        if ((Math.abs(p.x - e.x) < 46 || Math.abs(p.y - e.y) < 46) && d > 90) {
+          ai.state = 'chargeUp'; ai.t = 0.5; ai.lock = a;
+          e.vx = 0; e.vy = 0; e.warning = true;
+          Audio.bossRoar();
+        }
+        break;
+      }
+      case 'chargeUp': { // 前摇：压缩蓄力
+        e.vx = 0; e.vy = 0;
+        e.squash = Math.min(1, (e.squash || 0) + dt * 2.6);
+        ai.t -= dt;
+        if (ai.t <= 0) {
+          ai.state = 'charge'; ai.t = 1.1;
+          e.squash = -0.3; e.warning = false;
+          e.vx = Math.cos(ai.lock) * 430;
+          e.vy = Math.sin(ai.lock) * 430;
+          Audio.bossRoar();
+        }
+        break;
+      }
+      case 'charge': { // 高速直冲，撞墙/超时结束
+        ai.t -= dt;
+        e.x += e.vx * dt; e.y += e.vy * dt;
+        if (ai.t <= 0 || e.x < 85 || e.x > W - 85 || e.y < 75 || e.y > H - 75) {
+          Audio.stomp(); addShake(10, 0.3);
+          for (let i = 0; i < 6; i++) {
+            const an = i / 6 * TAU + e.seed;
+            Game.enemyTears.push({ x: e.x, y: e.y, vx: Math.cos(an) * 180, vy: Math.sin(an) * 180, r: 5, dmg: 1, owner: 'enemy' });
+          }
+          const alive = Game.enemies.filter((o) => o.type === 'attackfly' && !o.dead).length;
+          if (alive < 3) {
+            const sp = Game.spawnEnemy('attackfly', e.x + rand(-30, 30), e.y + rand(-30, 30));
+            if (sp) sp.spawnT = 0.3;
+          }
+          ai.state = 'idle'; ai.t = rand(0.6, 1.3);
+          e.squash = Math.max(0, (e.squash || 0) - dt * 4);
+        }
+        break;
+      }
+    }
+    // 身体段跟随（3 段，全身接触威胁）
+    const segs = e.segs;
+    if (!segs.length) for (let i = 0; i < 3; i++) segs.push({ x: e.x, y: e.y });
+    segs.unshift({ x: e.x, y: e.y });
+    segs.pop();
+    const gap = 24;
+    for (let i = 1; i < segs.length; i++) {
+      const pr = segs[i - 1], sg = segs[i];
+      const dd = dist(sg.x, sg.y, pr.x, pr.y);
+      if (dd > gap && dd > 0.01) {
+        const a2 = angleTo(pr.x, pr.y, sg.x, sg.y);
+        sg.x = pr.x + Math.cos(a2) * gap;
+        sg.y = pr.y + Math.sin(a2) * gap;
+      }
+      if (circleHit(sg.x, sg.y, 14, p.x, p.y, p.r - 2)) damagePlayer(1, p.x - sg.x, p.y - sg.y);
+    }
+  }
+
+  // ---- Monstro II：跳压 + 扫射血激光 + 召唤血口，半血狂暴 ----
+  function updateMonstro2(e, dt) {
+    const p = Game.player;
+    const ai = e.ai;
+    const enrage = e.hp < e.maxHp * 0.5;
+    const a = angleTo(e.x, e.y, p.x, p.y);
+    ai.t -= dt;
+    switch (ai.state) {
+      case 'idle': {
+        e.y = e.groundY + Math.sin(Game.time * 4 + e.seed) * 3;
+        e.vx = 0; e.vy = 0;
+        e.squash = Math.max(0, e.squash - dt * 2);
+        e.maw = Math.max(0.6, e.maw - dt);
+        if (ai.t <= 0) {
+          if (Math.random() < 0.55) { ai.state = 'squash'; ai.t = 0.34; }
+          else { ai.state = 'brimCharge'; ai.t = 0.62; ai.lock = a; ai.beamDir = 1; ai.beamT = 0; ai.beamA = a; }
+        }
+        break;
+      }
+      case 'squash': {
+        e.vx = 0; e.vy = 0;
+        e.squash = 1 - ai.t / 0.34;
+        if (ai.t <= 0) {
+          ai.state = 'leapUp'; ai.t = 0.5;
+          e.vx = Math.cos(a) * (enrage ? 200 : 160);
+          e.vy = -(enrage ? 360 : 320);
+          e.groundY = e.y;
+          e.squash = -0.25;
+        }
+        break;
+      }
+      case 'leapUp': { // 上升段
+        e.vy += ai.g * dt;
+        e.x += e.vx * dt;
+        e.y += e.vy * dt;
+        if (e.x < e.r + 30) { e.x = e.r + 30; e.vx = Math.abs(e.vx); }
+        if (e.x > W - e.r - 30) { e.x = W - e.r - 30; e.vx = -Math.abs(e.vx); }
+        if (e.vy > 0) { ai.state = 'leapDown'; ai.t = 0.45; }
+        break;
+      }
+      case 'leapDown': { // 落地：8 向弹 + 召唤血口 + 范围伤害
+        e.vy += ai.g * dt;
+        e.x += e.vx * dt;
+        e.y += e.vy * dt;
+        if (e.y >= e.groundY) {
+          e.y = e.groundY;
+          ai.state = 'idle'; ai.t = enrage ? 0.8 : 1.2;
+          e.squash = 0.55;
+          Audio.stomp(); addShake(12, 0.35);
+          burst(e.x, e.y, { count: 20, speed: 200, color: '#8a7a5e', size: 3, life: 0.4, gravity: 400 });
+          for (let i = 0; i < 8; i++) {
+            const an = i / 8 * TAU;
+            Game.enemyTears.push({ x: e.x, y: e.y, vx: Math.cos(an) * 210, vy: Math.sin(an) * 210, r: 6, dmg: 1, owner: 'enemy' });
+          }
+          const p2 = Game.player;
+          if (circleHit(e.x, e.y, 80, p2.x, p2.y, p2.r)) damagePlayer(2, (p2.x - e.x) * 0.05, (p2.y - e.y) * 0.05);
+          if (Math.random() < 0.6) {
+            const c = Game.currentRoom && Dungeon.randomFreeCell(Game.currentRoom, null, true);
+            const { x, y } = cellCenter(c ? c.gx : 7, c ? c.gy : 4);
+            const m = Game.spawnEnemy('maw', x, y);
+            if (m) { m.hp = Math.round(m.hp * 0.8); m.spawnT = 0.3; }
+          }
+        }
+        break;
+      }
+      case 'brimCharge': { // 蓄力（红光）
+        e.vx = 0; e.vy = 0;
+        e.maw = Math.min(1, 1 - ai.t / 0.62);
+        if (ai.t <= 0) {
+          ai.state = 'brim'; ai.t = enrage ? 2.2 : 1.7; ai.beamT = 0; ai.beamA = ai.lock;
+        }
+        break;
+      }
+      case 'brim': { // 扫射激光：锁定起始角 ±0.65 弧度往复
+        e.vx = 0; e.vy = 0;
+        e.maw = 1;
+        const sweep = enrage ? 1.5 : 1.1; // 弧度/秒
+        ai.beamA += ai.beamDir * sweep * dt;
+        if (Math.abs(ai.beamA - ai.lock) > 0.65) { ai.beamDir *= -1; ai.beamA = ai.lock + ai.beamDir * 0.65; }
+        // 每 0.09s 刷一帧短命光束
+        ai.beamT -= dt;
+        if (ai.beamT <= 0) {
+          ai.beamT = 0.09;
+          spawnEnemyBeam(e.x, e.y, ai.beamA, 940, 0.22);
+          Audio.laserShoot();
+        }
+        if (ai.t <= 0) { ai.state = 'idle'; ai.t = enrage ? 0.9 : 1.4; e.maw = 0.6; }
+        break;
       }
     }
   }
@@ -1079,9 +1326,42 @@ const Entities = (function () {
     }
   }
 
+  // ================= 敌方激光实体（vis / Monstro II 扫射） =================
+  function spawnEnemyBeam(x, y, angle, len, dur) {
+    if (!Game.beams) Game.beams = [];
+    const b = { x, y, angle, len: len || 900, t: 0, dur: dur || 0.5 };
+    Game.beams.push(b);
+    return b;
+  }
+
+  // 点到线段距离（光束命中判定）
+  function distToSeg(px, py, x1, y1, x2, y2) {
+    const dx = x2 - x1, dy = y2 - y1;
+    const l2 = dx * dx + dy * dy;
+    let t = l2 > 0 ? ((px - x1) * dx + (py - y1) * dy) / l2 : 0;
+    t = clamp(t, 0, 1);
+    return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+  }
+
+  function updateBeams(dt) {
+    const arr = Game.beams;
+    if (!arr) return;
+    const p = Game.player;
+    for (let i = arr.length - 1; i >= 0; i--) {
+      const b = arr[i];
+      b.t += dt;
+      if (b.t >= b.dur) { arr.splice(i, 1); continue; }
+      const x2 = b.x + Math.cos(b.angle) * b.len;
+      const y2 = b.y + Math.sin(b.angle) * b.len;
+      if (distToSeg(p.x, p.y, b.x, b.y, x2, y2) < 13) {
+        damagePlayer(2, Math.cos(b.angle) * 50, Math.sin(b.angle) * 50);
+      }
+    }
+  }
+
   return {
     createPlayer, updatePlayer, damagePlayer,
-    updateTears, explodeAt,
+    updateTears, explodeAt, updateBeams, spawnEnemyBeam,
     createEnemy, updateEnemies,
     createBoss, updateBosses, updateMomEye,
     killEnemy(e) { if (!e.dead) { e.hp = 0; enemyDie(e); } },
