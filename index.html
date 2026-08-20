@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport"
+    content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <title>Tears of the Dungeon · 泪之地牢</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+
+<body>
+  <div id="stage">
+    <canvas id="game" width="900" height="540"></canvas>
+
+    <!-- 开始界面 -->
+    <div id="screen-start" class="screen">
+      <div class="title-box">
+        <div class="title-main">Tears of the Dungeon</div>
+        <div class="title-sub">泪之地牢 · ROGUELIKE 地牢射击</div>
+      </div>
+      <div class="menu-tip">
+        <p>WASD 移动 ｜ 方向键 发射眼泪</p>
+        <p>清空房间 → 门开 → 找到 BOSS 房 击败通往下一层</p>
+        <p class="dim">P 暂停 ｜ M 音效 ｜ 移动端自动出现摇杆</p>
+      </div>
+      <button id="btn-start" class="big-btn">开始游戏</button>
+      <div class="credit">AI 编程开发的同人致敬作品 · 美术全部由代码绘制</div>
+    </div>
+
+    <!-- 死亡界面 -->
+    <div id="screen-dead" class="screen hidden">
+      <div class="title-main red">你死了</div>
+      <div class="menu-tip stats">
+        <p>本局击杀 <b id="dead-kills">0</b></p>
+        <p>拾取道具 <b id="dead-items">0</b></p>
+        <p>存活时间 <b id="dead-time">0:00</b></p>
+        <p>到达层数 <b id="dead-floor">1</b></p>
+      </div>
+      <button id="btn-restart" class="big-btn">重新开始</button>
+    </div>
+
+    <!-- 通关界面 -->
+    <div id="screen-victory" class="screen hidden">
+      <div class="title-main gold">通 关 ！</div>
+      <div class="menu-tip stats">
+        <p>击败 <b id="vic-kills">0</b> 个敌人</p>
+        <p>收集 <b id="vic-items">0</b> 件道具</p>
+        <p>用时 <b id="vic-time">0:00</b></p>
+      </div>
+      <button id="btn-victory" class="big-btn">再来一局</button>
+    </div>
+
+    <!-- 暂停界面 -->
+    <div id="screen-pause" class="screen hidden">
+      <div class="title-main">暂停</div>
+      <div class="menu-tip stats" id="pause-stats"></div>
+      <div class="menu-tip dim" id="pause-items"></div>
+      <button id="btn-resume" class="big-btn">继续</button>
+    </div>
+
+    <!-- 道具提示 -->
+    <div id="toast" class="hidden"></div>
+
+    <!-- 移动端触控 -->
+    <div id="touch-wrap" class="hidden">
+      <div id="joy-zone">
+        <div id="joy-base">
+          <div id="joy-knob"></div>
+        </div>
+      </div>
+      <div id="shoot-zone">
+        <button class="shoot-btn" data-dir="up">▲</button>
+        <button class="shoot-btn" data-dir="left">◀</button>
+        <button class="shoot-btn" data-dir="down">▼</button>
+        <button class="shoot-btn" data-dir="right">▶</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/util.js"></script>
+  <script src="js/art.js"></script>
+  <script src="js/dungeon.js"></script>
+  <script src="js/items.js"></script>
+  <script src="js/entities.js"></script>
+  <script src="js/game.js"></script>
+  <script src="js/main.js"></script>
+</body>
+
+</html>

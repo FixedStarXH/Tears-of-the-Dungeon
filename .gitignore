@@ -1,0 +1,9 @@
+# Python 缓存
+__pycache__/
+*.pyc
+
+# 内部开发文档（不含游戏源码）
+Prompt .md
+
+# 本地调试产物
+.pw-browsers/

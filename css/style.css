@@ -1,0 +1,261 @@
+/* Tears of the Dungeon · 泪之地牢 样式 */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html,
+body {
+  width: 100%;
+  height: 100%;
+  background: #0a0908;
+  overflow: hidden;
+  font-family: "Segoe UI", "Microsoft YaHei", sans-serif;
+  user-select: none;
+  -webkit-user-select: none;
+  touch-action: none;
+}
+
+#stage {
+  position: relative;
+  width: 900px;
+  height: 540px;
+  transform-origin: top left;
+}
+
+canvas#game {
+  display: block;
+  width: 900px;
+  height: 540px;
+  background: #000;
+  image-rendering: auto;
+}
+
+/* ---------- 界面遮罩 ---------- */
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 26px;
+  background: radial-gradient(ellipse at 50% 30%, rgba(30, 20, 15, .82), rgba(5, 4, 3, .94));
+  z-index: 10;
+}
+
+.hidden {
+  display: none !important;
+}
+
+.title-box {
+  text-align: center;
+}
+
+.title-main {
+  font-size: 48px;
+  font-weight: 900;
+  color: #f2e3c4;
+  text-shadow: 0 4px 0 #3a2318, 0 8px 24px rgba(0, 0, 0, .8);
+  letter-spacing: 3px;
+}
+
+.title-main.red {
+  color: #e0533c;
+  text-shadow: 0 4px 0 #5a1410, 0 8px 24px rgba(0, 0, 0, .8);
+}
+
+.title-main.gold {
+  color: #ffd76a;
+  text-shadow: 0 4px 0 #7a4d12, 0 8px 24px rgba(0, 0, 0, .8);
+}
+
+.title-sub {
+  margin-top: 10px;
+  font-size: 15px;
+  letter-spacing: 3px;
+  color: #a8906f;
+  text-shadow: 0 2px 4px #000;
+}
+
+.menu-tip {
+  text-align: center;
+  color: #cfb48f;
+  font-size: 15px;
+  line-height: 2;
+}
+
+.menu-tip p {
+  text-shadow: 0 2px 3px #000;
+}
+
+.menu-tip .dim,
+.dim {
+  color: #8a7a63;
+  font-size: 13px;
+}
+
+.menu-tip.stats b {
+  color: #ffd76a;
+  font-size: 18px;
+}
+
+.big-btn {
+  font-size: 22px;
+  font-weight: 700;
+  color: #f5e9d2;
+  background: linear-gradient(#6d4b2c, #4a2f1a);
+  border: 3px solid #2c1b0e;
+  border-radius: 10px;
+  padding: 14px 54px;
+  cursor: pointer;
+  box-shadow: 0 6px 0 #2c1b0e, 0 10px 20px rgba(0, 0, 0, .6);
+  transition: transform .08s;
+}
+
+.big-btn:hover {
+  filter: brightness(1.15);
+}
+
+.big-btn:active {
+  transform: translateY(4px);
+  box-shadow: 0 2px 0 #2c1b0e;
+}
+
+.credit {
+  position: absolute;
+  bottom: 14px;
+  font-size: 12px;
+  color: #6b5d4d;
+}
+
+/* ---------- 道具提示 ---------- */
+#toast {
+  position: absolute;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, .78);
+  border: 2px solid #ffd76a;
+  border-radius: 8px;
+  color: #ffe9b0;
+  padding: 8px 22px;
+  font-size: 16px;
+  z-index: 20;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, .6);
+  white-space: nowrap;
+}
+
+#toast.show {
+  animation: toast-in 2.4s forwards;
+}
+
+@keyframes toast-in {
+  0% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-12px);
+  }
+
+  10%,
+  75% {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(-50%) translateY(-8px);
+  }
+}
+
+/* ---------- 移动端触控 ---------- */
+#touch-wrap {
+  position: absolute;
+  inset: 0;
+  z-index: 8;
+  pointer-events: none;
+}
+
+#joy-zone {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  width: 160px;
+  height: 160px;
+  pointer-events: auto;
+}
+
+#joy-base {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  width: 120px;
+  height: 120px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .10);
+  border: 3px solid rgba(255, 255, 255, .35);
+}
+
+#joy-knob {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ffe9b0, #b98a3e 70%);
+  border: 2px solid #5a3a14;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, .5);
+}
+
+#shoot-zone {
+  position: absolute;
+  right: 8px;
+  bottom: 8px;
+  width: 190px;
+  height: 190px;
+  pointer-events: auto;
+  display: grid;
+  grid-template-areas: ". up ." "left down right";
+  grid-template-columns: 1fr 1fr 1fr;
+  grid-template-rows: 1fr 1fr 1fr;
+}
+
+.shoot-btn {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, .35);
+  background: rgba(120, 40, 40, .35);
+  color: #ffd9c2;
+  font-size: 20px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.shoot-btn[data-dir="up"] {
+  grid-area: up;
+}
+
+.shoot-btn[data-dir="left"] {
+  grid-area: left;
+}
+
+.shoot-btn[data-dir="down"] {
+  grid-area: down;
+}
+
+.shoot-btn[data-dir="right"] {
+  grid-area: right;
+}
+
+.shoot-btn.active {
+  background: rgba(255, 120, 60, .65);
+  border-color: #ffd76a;
+}
