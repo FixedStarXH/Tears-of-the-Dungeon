@@ -128,9 +128,9 @@ const Dungeon = (function () {
 
   // 敌人池（每层）
   function enemyPool(floor) {
-    const base = ['gaper', 'pooter', 'horf', 'attackfly'];
-    if (floor >= 2) base.push('boomfly');
-    if (floor >= 3) base.push('knight');
+    const base = ['gaper', 'pooter', 'attackfly', 'clotty', 'hopper'];
+    if (floor >= 2) base.push('boomfly', 'horf');
+    if (floor >= 3) base.push('knight', 'maw', 'globin');
     return base;
   }
 
@@ -237,12 +237,15 @@ const Dungeon = (function () {
     // 宝箱房：其余死胡同
     const treasures = deadEnds.filter((r) => r !== bossR && r.type === 'normal').slice(0, 1);
     for (const tr of treasures) tr.type = 'treasure';
+    // 商店房：2 层起，死胡同富余（boss+宝箱+商店）时才出现
+    const shopR = floor >= 2 && deadEnds.length >= 3 ? deadEnds[2] : null;
+    if (shopR) shopR.type = 'shop';
 
     // 生成房间细节
     const enemyPoolArr = enemyPool(floor);
     for (const r of rooms) {
       r.floor = floor;
-      r.cleared = r.type === 'start';
+      r.cleared = r.type === 'start' || r.type === 'shop';
       r.entered = false;
       r.explored = r.type === 'start';
       r.doors = { up: null, down: null, left: null, right: null };
@@ -268,7 +271,7 @@ const Dungeon = (function () {
       // 布局
       let tpl;
       if (r.type === 'boss') tpl = BOSS_LAYOUT;
-      else if (r.type === 'start' || r.type === 'treasure') tpl = EMPTY_LAYOUT;
+      else if (r.type === 'start' || r.type === 'treasure' || r.type === 'shop') tpl = EMPTY_LAYOUT;
       else tpl = pick(LAYOUTS);
       r.propGrid = gridFromLayout(tpl);
       clearPaths(r.propGrid, r.doors);
@@ -280,8 +283,23 @@ const Dungeon = (function () {
         for (let i = 0; i < n; i++) r.enemies.push(pick(enemyPoolArr));
       }
       if (r.type === 'boss') r.boss = bossForFloor(floor);
+      // 商店：一行三个货架（中间可能是心，其余是道具），价格随层数上涨
+      if (r.type === 'shop') {
+        r.shopStalls = [];
+        const base = 5 + Math.floor(floor * 1.5);
+        const slots = [[3, 3], [7, 3], [11, 3]];
+        slots.forEach(([gx, gy], i) => {
+          if (i === 1 && chance(0.45)) {
+            r.shopStalls.push({ gx, gy, offer: 'heart', price: Math.max(3, base - 2), sold: false });
+          } else {
+            r.shopStalls.push({ gx, gy, offer: 'item', price: base + randInt(0, 3), sold: false });
+          }
+        });
+      }
       // 木箱
       if (r.type === 'normal' && chance(0.22)) r.chest = 'wood';
+      // 宝箱房附赠一口免费木箱
+      if (r.type === 'treasure' && chance(0.55)) r.chest = 'wood';
     }
     if (!force && !rooms.length) return null;
     return { w: GW, h: GH, rooms, start: rooms[0], grid, floor };
