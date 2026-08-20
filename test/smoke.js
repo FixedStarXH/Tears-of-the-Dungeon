@@ -289,5 +289,58 @@ const buy = global.__buy;
 assert(buy.after === buy.before - buy.price, `购买扣款 ${buy.before} → ${buy.after}（价格 ${buy.price}）`);
 assert(buy.sold === true, '购买后货架售罄');
 
-console.log(`\n结果：${errors === 0 ? '全部通过' : errors + ' 个失败'}`);
+console.log('--- 测试 10：p10 借鉴内容（新 Boss/新道具/激光实体/磁吸） ---');
+run(`Game.state='playing'; startGame(21);`);
+// 新 Boss 池引用与生成
+assert(runGet(`BOSS_POOLS[2].includes('chub')`), '第 2 层 Boss 池含 Chub');
+assert(runGet(`BOSS_POOLS[3].includes('monstro2')`), '第 3 层 Boss 池含 Monstro II');
+const cb = runGet(`
+  (() => {
+    const c = Entities.createBoss('chub', 450, 270);
+    const m = Entities.createBoss('monstro2', 450, 270);
+    return { chubSegs: c.segs.length, monstro2Hp: m.maxHp, visHp: Entities.createEnemy('vis', 100, 100, 4).hp };
+  })()
+`);
+assert(cb.chubSegs === 0 && cb.monstro2Hp === 110, `Chub 初始化分段 / Monstro II 血量 110`);
+assert(cb.visHp === Math.round(14 * 1.75), `vis 敌人可创建（hp=${cb.visHp}，期望 floor4 缩放 25）`);
+// 敌方激光实体：生成 + 更新不报错且能命中玩家
+run(`
+  (() => {
+    Game.beams = [];
+    Game.player.x = 450; Game.player.y = 270; Game.player.inv = 0;
+    Entities.spawnEnemyBeam(100, 270, 0, 900, 0.5);
+    Entities.updateBeams(0.3);
+    global.__beamHit = Game.player.hp < 6;
+  })()
+`);
+assert(runGet('__beamHit') === true, '血激光实体命中玩家并扣血');
+run(`Game.beams = [];`);
+// 新道具 7 件效果位
+run(`
+  (() => {
+    const p = Game.player;
+    ['twenty', 'mutant_spider', 'loki', 'moms_contact', 'magneto', 'ouija', 'proptosis'].forEach(id => applyItem(p, id));
+  })()
+`);
+assert(runGet(`Game.player.doubleShot && Game.player.quadShot && Game.player.loki`), '20/20+突变蜘蛛+洛基之角 → 效果位开启');
+assert(runGet(`Game.player.momsContact && Game.player.magneto && Game.player.ouija && Game.player.proptosis`),
+  '减速+磁吸+通灵板+下垂症 → 效果位开启');
+// 磁吸：远处金币被吸向玩家
+const mag = runGet(`
+  (() => {
+    const p = Game.player;
+    p.x = 450; p.y = 270; p.magneto = true;
+    Game.pickups = [{ type: 'coin', x: 530, y: 270, itemId: null }];
+    const before = Game.pickups[0].x;
+    updatePickups(1 / 60);
+    return { before, after: Game.pickups[0].x };
+  })()
+  `);
+assert(mag.after < mag.before, `磁吸生效：金币 ${Math.round(mag.before)} → ${Math.round(mag.after)} `);
+run(`Game.pickups = []; Game.player.magneto = false; `);
+// 楼层横幅
+run(`buildFloor(2); `);
+assert(runGet(`Game.banner && Game.banner.text.includes('洞穴')`), '进层显示楼层横幅（洞穴 · CAVES）');
+
+console.log(`\n结果：${errors === 0 ? '全部通过' : errors + ' 个失败'} `);
 process.exit(errors === 0 ? 0 : 1);
