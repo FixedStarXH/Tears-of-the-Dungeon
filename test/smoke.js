@@ -116,10 +116,11 @@ assert(runGet('Game.state') === 'dead', `掉血后 state=dead（实际 ${runGet(
 
 console.log('--- 测试 5：道具池不重复 ---');
 run(`Game.state='playing'; startGame(11);`);
+const poolLen = runGet('ITEM_LIST.length');
 const items1 = [];
-for (let i = 0; i < 20; i++) items1.push(runGet(`takeItem()`));
-assert(new Set(items1).size === items1.length, '道具池 20 件取件无重复');
-assert(runGet('ITEM_LIST.length') === 20, `道具总数 = ${runGet('ITEM_LIST.length')}`);
+for (let i = 0; i < poolLen; i++) items1.push(runGet('takeItem()'));
+assert(new Set(items1).size === items1.length, `道具池 ${poolLen} 件取件无重复`);
+assert(poolLen >= 30, `道具总数 = ${poolLen}`);
 
 console.log('--- 测试 6：宝箱房门状态与进出 ---');
 let treasureChecked = 0;
@@ -237,6 +238,56 @@ run(`
 `);
 run('updateGame(1/60)');
 assert(runGet(`Game.floor === 2`), `踩活板门进入第 2 层（实际 floor=${runGet('Game.floor')}）`);
+
+console.log('--- 测试 8：新道具机制（硫磺火/死猫/1UP/肉块/寄生虫） ---');
+run(`Game.state='playing'; startGame(13);`);
+run(`applyItem(Game.player, 'brimstone');`);
+assert(runGet('Game.player.brimstone') === true, '硫磺火 → brimstone=true');
+run(`applyItem(Game.player, 'dead_cat');`);
+assert(runGet('Game.player.revives') === 2 && runGet('Game.player.maxHp') === 2, `死猫 复活2次/1心（revives=${runGet('Game.player.revives')}）`);
+run(`Game.player.inv = 0; Entities.damagePlayer(999, 0, 0);`);
+assert(runGet('Game.player.dead') === false && runGet('Game.player.hp') === 2 && runGet('Game.player.revives') === 1,
+  `死猫复活：不死/hp=2/剩1次（hp=${runGet('Game.player.hp')}）`);
+run(`applyItem(Game.player, 'cube_of_meat'); applyItem(Game.player, 'parasite');`);
+assert(runGet('Game.player.orbital') === 1 && runGet('Game.player.split') === true, '肉块→orbital=1, 寄生虫→split=true');
+run(`applyItem(Game.player, 'tough_love'); applyItem(Game.player, 'lump_of_coal'); applyItem(Game.player, 'iron_bar');`);
+assert(runGet('Game.player.teeth') === true && runGet('Game.player.coal') === true && runGet('Game.player.knockboost') === true,
+  '严厉的爱/煤块/铁棒 → 效果位开启');
+
+console.log('--- 测试 9：商店房生成与购买 ---');
+let shopSeed = 0;
+for (let s = 1; s <= 300; s++) {
+  if (runGet(`Dungeon.generate(2, ${s}).rooms.some(r => r.type === 'shop')`)) { shopSeed = s; break; }
+}
+assert(shopSeed > 0, `第 2 层能找到带商店的种子（seed=${shopSeed}）`);
+run(`
+  (() => {
+    const d = Dungeon.generate(2, ${shopSeed});
+    const sh = d.rooms.find(r => r.type === 'shop');
+    global.__shop = { stalls: sh.shopStalls.length, prices: sh.shopStalls.map(s=>s.price), offers: sh.shopStalls.map(s=>s.offer) };
+  })()
+`);
+const shInfo = global.__shop;
+assert(shInfo.stalls === 3, `商店 3 个货架（实际 ${shInfo.stalls}）`);
+assert(shInfo.prices.every(p => p >= 3), `货架价格 ≥3（${shInfo.prices.join(',')}）`);
+run(`
+  (() => {
+    Game.state='playing'; startGame(${shopSeed});
+    Game.dungeon = Dungeon.generate(2, ${shopSeed});
+    const sh = Game.dungeon.rooms.find(r => r.type === 'shop');
+    sh.lastEnter = 'left';
+    enterRoom(sh);
+    Game.stats.coins = 99;
+    const st = sh.shopStalls[0];
+    Game.player.x = st.x; Game.player.y = st.y;
+    const before = Game.stats.coins;
+    updateShop(1/60);
+    global.__buy = { before, after: Game.stats.coins, sold: st.sold, price: st.price };
+  })()
+`);
+const buy = global.__buy;
+assert(buy.after === buy.before - buy.price, `购买扣款 ${buy.before} → ${buy.after}（价格 ${buy.price}）`);
+assert(buy.sold === true, '购买后货架售罄');
 
 console.log(`\n结果：${errors === 0 ? '全部通过' : errors + ' 个失败'}`);
 process.exit(errors === 0 ? 0 : 1);
