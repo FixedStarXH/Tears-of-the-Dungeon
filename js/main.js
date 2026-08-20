@@ -76,7 +76,7 @@ window.addEventListener('blur', () => { moveKeys.clear(); aimKeys.clear(); Input
 // ================= 触控（虚拟摇杆 + 四向射击） =================
 function initTouch() {
   const wrap = document.getElementById('touch-wrap');
-  const isTouch = ('ontouchstart' in window) || new URLSearchParams(location.search).get('mobile') === '1';
+  const isTouch = ('ontouchstart' in window) || new URLSearchParams(location.search).has('mobile');
   if (!isTouch) return;
   wrap.classList.remove('hidden');
   const joyZone = document.getElementById('joy-zone');
@@ -152,6 +152,7 @@ window.addEventListener('resize', fitStage);
 // ================= 界面流程 =================
 const canvas = document.getElementById('game');
 const ctx = canvas.getContext('2d');
+Game._canvas = canvas;
 
 function startNewGame() {
   for (const id of ['screen-start', 'screen-dead', 'screen-victory', 'screen-pause']) {
@@ -191,9 +192,12 @@ document.getElementById('btn-resume').addEventListener('click', resumeGame);
 
 // ================= 主循环 =================
 let lastT = performance.now();
+let fpsAcc = 0, fpsFrames = 0;
 function loop(t) {
   const dt = Math.min(0.033, (t - lastT) / 1000);
   lastT = t;
+  fpsAcc += dt; fpsFrames++;
+  if (fpsAcc >= 0.5) { Game.fps = fpsFrames / fpsAcc; fpsAcc = 0; fpsFrames = 0; }
   updateGame(dt);
   renderGame(ctx);
   requestAnimationFrame(loop);
@@ -202,10 +206,23 @@ function loop(t) {
 // ================= 调试接口 window.__game =================
 window.__game = {
   get state() { return Game.state; },
+  get seed() { return Game.seed; },
+  get floor() { return Game.floor; },
   get player() { return Game.player; },
+  get hp() { return Game.player.hp; },
+  get maxHp() { return Game.player.maxHp; },
+  get coins() { return Game.stats.coins; },
+  get keys() { return Game.stats.keys; },
+  get kills() { return Game.stats.kills; },
+  get elapsed() { return Game.time || 0; },
+  get fps() { return Math.round(Game.fps || 0); },
+  get items() { return Game.player.items.slice(); },
+  get itemNames() { return Game.player.items.map((id) => ITEMS[id] ? ITEMS[id].name : id); },
   get enemies() {
     return Game.enemies.map((e) => ({ type: e.type, hp: e.hp, maxHp: e.maxHp, x: Math.round(e.x), y: Math.round(e.y), isBoss: e.isBoss }));
   },
+  get enemyCount() { return Game.enemies.filter((e) => !e.dead).length; },
+  get enemyTypes() { return Game.enemies.filter((e) => !e.dead).map((e) => e.type); },
   get tearCount() { return Game.tears.length; },
   get enemyTearCount() { return Game.enemyTears.length; },
   get pickups() { return Game.pickups.map((p) => ({ type: p.type, itemId: p.itemId, x: p.x, y: p.y })); },
@@ -217,7 +234,6 @@ window.__game = {
       enemyPlan: r.enemies
     } : null;
   },
-  get floor() { return Game.floor; },
   get stats() { return Game.stats; },
   get dungeon() {
     return Game.dungeon ? {
@@ -225,17 +241,46 @@ window.__game = {
       rooms: Game.dungeon.rooms.map((r) => ({ x: r.x, y: r.y, type: r.type, cleared: r.cleared, explored: r.explored })),
     } : null;
   },
+  // 一次性快照（自动化测试 / 远程调试友好）
+  snapshot() {
+    const p = Game.player;
+    return {
+      state: Game.state, floor: Game.floor, seed: Game.seed,
+      fps: Math.round(Game.fps || 0), elapsed: +(Game.time || 0).toFixed(2),
+      player: { x: Math.round(p.x), y: Math.round(p.y), hp: p.hp, maxHp: p.maxHp, coins: Game.stats.coins, items: p.items.slice() },
+      room: Game.currentRoom ? { x: Game.currentRoom.x, y: Game.currentRoom.y, type: Game.currentRoom.type, cleared: Game.currentRoom.cleared } : null,
+      enemies: Game.enemies.filter((e) => !e.dead).map((e) => ({ type: e.type, hp: Math.round(e.hp), x: Math.round(e.x), y: Math.round(e.y) })),
+      counts: { tears: Game.tears.length, enemyTears: Game.enemyTears.length, pickups: Game.pickups.length },
+      stats: { ...Game.stats },
+    };
+  },
   start(seed) { startNewGame(); if (seed !== undefined) startGame(seed); },
   giveItem(id) { const it = applyItem(Game.player, id); if (it) showToast(`调试获得：${it.name}`); return !!it; },
-  godMode() {
+  god(v) {
     const p = Game.player;
     p.maxHp = 99; p.hp = 99; p.damage = 30; p.fireDelay = 3; p.speed = 210;
   },
+  godMode(v) { return this.god(v); }, // 兼容旧接口名
   killAll() {
     const list = Game.enemies.slice();
     for (const e of list) Entities.killEnemy(e);
   },
-  setHp(v) { Game.player.hp = v; },
+  hurtEnemies(n) { for (const e of Game.enemies.slice()) if (!e.dead) { e.hp -= n || 5; if (e.hp <= 0) Entities.killEnemy(e); } },
+  setHp(v) { Game.player.hp = clamp(v, 0, Game.player.maxHp); },
+  teleport(x, y) { Game.player.x = x; Game.player.y = y; Game.player.vx = Game.player.vy = 0; },
+  spawn(type, x, y) { return Game.spawnEnemy(type, x, y).type; },
+  warpTo(type) {
+    const r = Game.dungeon && Game.dungeon.rooms.find((rr) => rr.type === type);
+    if (!r) return false;
+    r.lastEnter = null;
+    enterRoom(r);
+    return true;
+  },
+  // 模拟按键（自动化测试）：移动方向 / 瞄准方向
+  press(dir) { if (DIRV[dir]) { moveKeys.add(dir); updateMove(); setAim(); } },
+  release(dir) { if (DIRV[dir]) { moveKeys.delete(dir); updateMove(); setAim(); } },
+  aim(dir) { if (DIRV[dir]) { aimKeys.add(dir); Input.aimOrder.push(dir); setAim(); } },
+  unaim(dir) { aimKeys.delete(dir); Input.aimOrder = Input.aimOrder.filter((k) => k !== dir); setAim(); },
   botStart() { Game.bot.on = true; },
   botStop() { Game.bot.on = false; Input.moveX = 0; Input.moveY = 0; Input.aimX = 0; Input.aimY = 0; },
   toast(msg) { showToast(msg); },
