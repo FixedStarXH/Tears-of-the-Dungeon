@@ -482,7 +482,9 @@ function renderGame(ctx) {
   }
   // 受击红晕
   if (Game.player && Game.player.hurtFlash > 0) {
-    ctx.fillStyle = `rgba(200,30,20,${Game.player.hurtFlash * 0.8})`;
+    ctx.fillStyle = `rgba(200,30,20,${Game.player.hurtFlash * 0.65})`;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = `rgba(255,220,180,${Game.player.hurtFlash * 0.08})`;
     ctx.fillRect(0, 0, W, H);
   }
   // 楼层横幅
@@ -505,29 +507,38 @@ function renderGame(ctx) {
   // 后处理：暗角 + 胶片颗粒（预生成噪点，随机偏移平铺）
   drawVignette(ctx);
   drawGrain(ctx);
+  if (Game.state === 'playing') {
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,220,180,0.02)';
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
 }
 
 // 楼层横幅：进层大标题（淡入 → 保持 → 淡出）
 function drawFloorBanner(ctx) {
   const b = Game.banner;
   if (!b) return;
-  const k = clamp(b.t / b.dur, 0, 1);
   const alpha = Math.min(1, b.t / 0.3, (b.dur - b.t) / 0.5);
   if (alpha <= 0) return;
   ctx.save();
   ctx.globalAlpha = alpha;
-  ctx.fillStyle = 'rgba(0,0,0,0.55)';
-  ctx.fillRect(0, H * 0.32, W, 64);
+  const y = H * 0.31;
+  ctx.fillStyle = 'rgba(0,0,0,0.58)';
+  ctx.fillRect(0, y, W, 72);
+  ctx.fillStyle = 'rgba(255,220,160,0.08)';
+  ctx.fillRect(0, y + 4, W, 8);
+  ctx.fillRect(0, y + 60, W, 8);
   ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
   ctx.font = 'bold 30px serif';
   ctx.strokeStyle = '#1a0a06';
   ctx.lineWidth = 5;
-  ctx.strokeText(b.text, W / 2, H * 0.32 + 32);
+  ctx.strokeText(b.text, W / 2, y + 31);
   ctx.fillStyle = '#e8d8b8';
-  ctx.fillText(b.text, W / 2, H * 0.32 + 32);
+  ctx.fillText(b.text, W / 2, y + 31);
   ctx.font = 'bold 12px sans-serif';
   ctx.fillStyle = '#c8a878';
-  ctx.fillText('Tears of the Dungeon', W / 2, H * 0.32 + 54);
+  ctx.fillText('Tears of the Dungeon', W / 2, y + 54);
   ctx.restore();
 }
 
