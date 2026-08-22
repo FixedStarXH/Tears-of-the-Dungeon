@@ -186,11 +186,14 @@ const Art = (function () {
     const c1 = floor === 3 ? '#6a5c84' : '#8a7a5e';
     const c2 = floor === 3 ? '#3c334f' : '#52432e';
     g.addColorStop(0, c1); g.addColorStop(1, c2);
+    blob(ctx, x, y, r, x * 7 + y * 3, 9, 0.12);
     ctx.fillStyle = g;
-    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+    ctx.fill();
     ctx.strokeStyle = 'rgba(20,14,6,0.9)';
     ctx.lineWidth = 3;
     ctx.stroke();
+    ctx.fillStyle = 'rgba(255,240,200,0.12)';
+    ctx.beginPath(); ctx.arc(x - r * 0.3, y - r * 0.38, r * 0.16, 0, TAU); ctx.fill();
     ctx.strokeStyle = 'rgba(20,14,6,0.6)';
     ctx.lineWidth = 1.5;
     ctx.beginPath();
@@ -201,11 +204,26 @@ const Art = (function () {
 
   function drawPit(ctx, gx, gy) {
     const { x, y } = cellCenter(gx, gy);
+    const half = CELL / 2 - 3;
     ctx.fillStyle = '#0d0906';
-    ctx.fillRect(x - CELL / 2 + 3, y - CELL / 2 + 3, CELL - 6, CELL - 6);
+    ctx.fillRect(x - half, y - half, half * 2, half * 2);
+    // 深度渐变 + 顶部受光缘 + 底部阴影
+    const g = ctx.createRadialGradient(x, y, 3, x, y, half);
+    g.addColorStop(0, '#050302');
+    g.addColorStop(1, '#0d0906');
+    ctx.fillStyle = g;
+    ctx.fillRect(x - half, y - half, half * 2, half * 2);
     ctx.strokeStyle = '#3a2c1c';
     ctx.lineWidth = 3;
-    ctx.strokeRect(x - CELL / 2 + 3, y - CELL / 2 + 3, CELL - 6, CELL - 6);
+    ctx.strokeRect(x - half, y - half, half * 2, half * 2);
+    ctx.strokeStyle = 'rgba(255,220,160,0.12)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x - half + 4, y - half + 2); ctx.lineTo(x + half - 4, y - half + 2); ctx.stroke();
+    ctx.strokeStyle = 'rgba(0,0,0,0.6)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(x - half + 2, y + half - 2); ctx.lineTo(x + half - 2, y + half - 2); ctx.stroke();
     ctx.fillStyle = '#2a1f14';
     for (let i = 0; i < 5; i++) {
       const px = x + (i * 11 - 22) + ((gy * 7 + i) % 5), py = y + ((i * 7) % 9) - 4;
@@ -1264,16 +1282,21 @@ const Art = (function () {
         ctx.fillText('¢', x, y + 1);
       }
     } else if (p.type === 'key') {
+      const kb = Math.sin(Game.time * 5 + p.seed) * 2;
+      ctx.save();
+      ctx.shadowColor = 'rgba(255,210,80,0.35)';
+      ctx.shadowBlur = 8;
       ctx.fillStyle = '#e8b93a';
       ctx.strokeStyle = '#7a5410';
       ctx.lineWidth = 2.5;
-      ctx.beginPath(); ctx.arc(x - 6, y, 5, 0, TAU); ctx.fill(); ctx.stroke();
-      ctx.beginPath(); ctx.arc(x - 6, y, 2, 0, TAU); ctx.fill();
-      ctx.fillRect(x - 2, y - 2, 12, 4);
+      ctx.beginPath(); ctx.arc(x - 6, y + kb, 5, 0, TAU); ctx.fill(); ctx.stroke();
+      ctx.beginPath(); ctx.arc(x - 6, y + kb, 2, 0, TAU); ctx.fill();
+      ctx.fillRect(x - 2, y - 2 + kb, 12, 4);
       ctx.beginPath();
-      ctx.moveTo(x + 10, y - 2); ctx.lineTo(x + 14, y - 7); ctx.lineTo(x + 14, y - 2); ctx.closePath();
-      ctx.moveTo(x + 10, y + 2); ctx.lineTo(x + 14, y + 7); ctx.lineTo(x + 14, y + 2); ctx.closePath();
+      ctx.moveTo(x + 10, y - 2 + kb); ctx.lineTo(x + 14, y - 7 + kb); ctx.lineTo(x + 14, y - 2 + kb); ctx.closePath();
+      ctx.moveTo(x + 10, y + 2 + kb); ctx.lineTo(x + 14, y + 7 + kb); ctx.lineTo(x + 14, y + 2 + kb); ctx.closePath();
       ctx.fill();
+      ctx.restore();
     } else if (p.type === 'item') {
       drawPedestal(ctx, x, y);
       const it = ITEMS[p.itemId];
