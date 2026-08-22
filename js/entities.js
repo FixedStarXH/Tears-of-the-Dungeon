@@ -240,7 +240,7 @@ const Entities = (function () {
           t.bounce--;
           t.hit = new Set();
           t.traveled -= t.range * 0.15;
-          burst(t.x, t.y, { count: 4, speed: 60, color: '#cfe8c8', size: 2, life: 0.25 });
+          burst(t.x, t.y, { count: 4, speed: 60, color: '#cfe8c8', size: 2, life: 0.25, glow: true });
         }
       }
       if (t.traveled >= t.range || (t.h >= 1 && !t.laser)) {
@@ -322,7 +322,7 @@ const Entities = (function () {
     if (t.explosive && t.owner === 'player') {
       explodeAt(t.x, t.y, 62, t.dmg * 1.6, true);
     } else {
-      burst(t.x, t.y, { count: 4, speed: 40, color: '#bfe0f2', size: 2, life: 0.25 });
+      burst(t.x, t.y, { count: 4, speed: 40, color: '#bfe0f2', size: 2, life: 0.25, glow: true });
     }
   }
 
@@ -349,19 +349,19 @@ const Entities = (function () {
     if (t.poison && t.poison > 0) {
       e.poison = Math.max(e.poison || 0, 3);
       e.poisonDps = Math.max(e.poisonDps || 0, t.poison);
-      burst(t.x, t.y, { count: 6, speed: 70, color: '#8ed060', size: 2, life: 0.5, gravity: 100 });
+      burst(t.x, t.y, { count: 6, speed: 70, color: '#8ed060', size: 2, life: 0.5, gravity: 100, glow: true });
     }
     // 减速（妈妈的爱抚）
     if (t.slow) {
       e.slow = Math.max(e.slow || 0, 2.2);
-      burst(t.x, t.y, { count: 5, speed: 50, color: '#b0c8e0', size: 2, life: 0.45 });
+      burst(t.x, t.y, { count: 5, speed: 50, color: '#b0c8e0', size: 2, life: 0.45, glow: true });
     }
     // 击退（铁棒：击退加强）
     const a = Math.atan2(t.vy, t.vx);
     const kb = t.kb ? 2.2 : 1;
     e.kx += Math.cos(a) * 40 * kb;
     e.ky += Math.sin(a) * 40 * kb;
-    burst(t.x, t.y, { count: 5, speed: 80, color: '#c83230', size: 2.5, life: 0.35, gravity: 200 });
+    burst(t.x, t.y, { count: 5, speed: 80, color: '#c83230', size: 2.5, life: 0.35, gravity: 200, glow: true });
     if (Game.currentRoom) Art.addStain(Game.currentRoom, t.x, t.y, false);
     stopHit(0.02);
     if (e.hp <= 0) enemyDie(e);
@@ -379,7 +379,7 @@ const Entities = (function () {
       e.hitFlash = 0;
       e.spawnT = 0.4;
       e.spawnMax = 0.4;
-      burst(e.x, e.y, { count: 16, speed: 140, color: '#8ed060', size: 3, life: 0.5, gravity: 250 });
+      burst(e.x, e.y, { count: 16, speed: 140, color: '#8ed060', size: 3, life: 0.5, gravity: 250, glow: true });
       Audio.kill();
       return;
     }
@@ -387,7 +387,7 @@ const Entities = (function () {
     Game.stats.kills++;
     Audio.kill();
     addShake(5, 0.15);
-    burst(e.x, e.y, { count: 12, speed: 120, color: '#c83230', size: 3, life: 0.5, gravity: 300 });
+    burst(e.x, e.y, { count: 12, speed: 120, color: '#c83230', size: 3, life: 0.5, gravity: 300, glow: true });
     if (Game.currentRoom) Art.addStain(Game.currentRoom, e.x, e.y, e.isBoss);
     if (e.boom) explodeAt(e.x, e.y, 90, 3, false);
     if (e.isBoss) {
@@ -413,8 +413,8 @@ const Entities = (function () {
   function explodeAt(x, y, radius, dmg, isPlayer) {
     Audio.boom();
     addShake(10, 0.3);
-    burst(x, y, { count: 26, speed: 240, color: '#e89430', size: 3.5, life: 0.5, gravity: 200 });
-    burst(x, y, { count: 14, speed: 160, color: '#c8e060', size: 3, life: 0.4 });
+    burst(x, y, { count: 26, speed: 240, color: '#e89430', size: 3.5, life: 0.5, gravity: 200, glow: true });
+    burst(x, y, { count: 14, speed: 160, color: '#c8e060', size: 3, life: 0.4, glow: true });
     if (Game.currentRoom) Art.addStain(Game.currentRoom, x, y, true);
     if (isPlayer) {
       // 波及敌人
@@ -445,7 +445,7 @@ const Entities = (function () {
     if (p.shieldUp) {
       p.shieldUp = false;
       p.inv = 0.5;
-      burst(p.x, p.y, { count: 16, speed: 130, color: '#a8dcff', size: 3, life: 0.5 });
+      burst(p.x, p.y, { count: 16, speed: 130, color: '#a8dcff', size: 3, life: 0.5, glow: true });
       Audio.pickup();
       return;
     }
@@ -460,14 +460,14 @@ const Entities = (function () {
     p.hitStun = 0.2;
     addShake(8, 0.2);
     Audio.hurt();
-    burst(p.x, p.y, { count: 10, speed: 100, color: '#c83230', size: 3, life: 0.4, gravity: 300 });
+    burst(p.x, p.y, { count: 10, speed: 100, color: '#c83230', size: 3, life: 0.4, gravity: 300, glow: true });
     if (Game.currentRoom) Art.addStain(Game.currentRoom, p.x, p.y, false);
     // 复活（1UP / 死猫）：1 心 + 长无敌 + 金色粒子
     if (p.hp <= 0 && p.revives > 0) {
       p.revives--;
       p.hp = 2;
       p.inv = 2.4;
-      burst(p.x, p.y, { count: 26, speed: 170, color: '#ffe8a0', size: 4, life: 0.8 });
+      burst(p.x, p.y, { count: 26, speed: 170, color: '#ffe8a0', size: 4, life: 0.8, glow: true });
       Audio.item();
       return;
     }
@@ -526,7 +526,7 @@ const Entities = (function () {
       if (e.poison > 0) {
         e.poison -= dt;
         e.hp -= (e.poisonDps || 1) * dt;
-        if (Math.random() < dt * 8) burst(e.x, e.y, { count: 2, speed: 40, color: '#8ed060', size: 2, life: 0.4 });
+        if (Math.random() < dt * 8) burst(e.x, e.y, { count: 2, speed: 40, color: '#8ed060', size: 2, life: 0.4, glow: true });
         if (e.hp <= 0) { enemyDie(e); continue; }
       }
       // 击退衰减

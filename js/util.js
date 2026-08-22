@@ -75,15 +75,15 @@ function spawnParticle(p) {
   if (particles.length > 600) particles.splice(0, particles.length - 600);
   particles.push(Object.assign({
     x: 0, y: 0, vx: 0, vy: 0, life: 0.5, t: 0,
-    size: 3, color: '#fff', gravity: 0, add: null,
+    size: 3, color: '#fff', gravity: 0, add: null, glow: false,
   }, p));
 }
 function burst(x, y, opts) {
-  const { count = 10, speed = 80, color = '#fff', size = 3, life = 0.5, gravity = 0, spread = TAU } = opts || {};
+  const { count = 10, speed = 80, color = '#fff', size = 3, life = 0.5, gravity = 0, spread = TAU, glow = false } = opts || {};
   for (let i = 0; i < count; i++) {
     const a = rand(0, spread);
     const s = rand(speed * 0.3, speed);
-    spawnParticle({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, color, size: rand(size * 0.6, size * 1.4), life: rand(life * 0.5, life), gravity });
+    spawnParticle({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, color, size: rand(size * 0.6, size * 1.4), life: rand(life * 0.5, life), gravity, glow });
   }
 }
 function updateParticles(dt) {
@@ -102,8 +102,17 @@ function drawParticles(ctx) {
   for (const p of particles) {
     const a = 1 - p.t / p.life;
     ctx.globalAlpha = a;
-    ctx.fillStyle = p.color;
     const s = p.size * (0.5 + a * 0.5);
+    if (p.glow) { // 辉光晕：lighter 底层（与眼泪辉光一致）
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = a * 0.35;
+      ctx.beginPath(); ctx.arc(p.x, p.y, s * 2.4, 0, TAU); ctx.fill();
+      ctx.restore();
+      ctx.globalAlpha = a;
+    }
+    ctx.fillStyle = p.color;
     ctx.beginPath();
     ctx.arc(p.x, p.y, s, 0, TAU);
     ctx.fill();

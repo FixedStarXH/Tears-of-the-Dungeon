@@ -199,7 +199,15 @@ const Art = (function () {
     ctx.beginPath();
     ctx.moveTo(x - r * 0.5, y - r * 0.2); ctx.lineTo(x + r * 0.2, y + r * 0.1); ctx.lineTo(x - r * 0.1, y + r * 0.5);
     ctx.moveTo(x + r * 0.3, y - r * 0.55); ctx.lineTo(x + r * 0.55, y - r * 0.3);
+    // 裂纹细分：次级细纹 + 崩口
+    ctx.strokeStyle = 'rgba(20,14,6,0.4)';
+    ctx.lineWidth = 1;
+    ctx.moveTo(x + r * 0.05, y + r * 0.18); ctx.lineTo(x - r * 0.28, y + r * 0.32); ctx.lineTo(x - r * 0.42, y + r * 0.28);
+    ctx.moveTo(x + r * 0.2, y + r * 0.1); ctx.lineTo(x + r * 0.42, y + r * 0.28); ctx.lineTo(x + r * 0.5, y + r * 0.46);
+    ctx.moveTo(x - r * 0.5, y - r * 0.2); ctx.lineTo(x - r * 0.62, y - r * 0.42);
     ctx.stroke();
+    ctx.fillStyle = 'rgba(255,240,200,0.07)';
+    ctx.fillRect(x - r * 0.62, y - r * 0.46, 3, 3);
   }
 
   function drawPit(ctx, gx, gy) {
@@ -234,7 +242,11 @@ const Art = (function () {
   function drawSpikes(ctx, x, y) {
     for (let i = -1; i <= 1; i++) {
       const sx = x + i * 9;
-      ctx.fillStyle = '#8d9396';
+      const g = ctx.createLinearGradient(sx, y - 7, sx, y + 6);
+      g.addColorStop(0, '#c4c9cc');
+      g.addColorStop(0.55, '#8d9396');
+      g.addColorStop(1, '#5c6164');
+      ctx.fillStyle = g;
       ctx.beginPath();
       ctx.moveTo(sx - 6, y + 6);
       ctx.lineTo(sx, y - 7);
@@ -244,8 +256,13 @@ const Art = (function () {
       ctx.strokeStyle = '#3c4042';
       ctx.lineWidth = 1.5;
       ctx.stroke();
-      ctx.fillStyle = '#b7bcc0';
-      ctx.beginPath(); ctx.arc(sx - 2, y + 2, 2, 0, TAU); ctx.fill();
+      // 锈渍：根部铁锈斑
+      ctx.fillStyle = 'rgba(140,80,36,0.5)';
+      ctx.beginPath(); ctx.arc(sx - 3, y + 5, 2.4, 0, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(140,80,36,0.35)';
+      ctx.beginPath(); ctx.arc(sx + 2, y + 4, 1.6, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#dde2e5';
+      ctx.beginPath(); ctx.arc(sx - 2, y - 3, 1.5, 0, TAU); ctx.fill();
     }
   }
 
@@ -1373,10 +1390,17 @@ const Art = (function () {
     const c = it.color || '#fff';
     ctx.save();
     ctx.translate(x, y);
-    ctx.fillStyle = 'rgba(10,8,6,0.9)';
-    ctx.strokeStyle = '#3a2c1c';
-    ctx.lineWidth = 2;
-    ctx.beginPath(); ctx.arc(0, 0, s, 0, TAU); ctx.fill(); ctx.stroke();
+    // 内凹背板：上暗下亮的碗状旋涡 + 外圈铁环高光
+    const g = ctx.createRadialGradient(0, s * 0.36, s * 0.12, 0, 0, s);
+    g.addColorStop(0, '#030201');
+    g.addColorStop(0.68, 'rgba(12,9,6,0.96)');
+    g.addColorStop(1, '#261b10');
+    ctx.fillStyle = g;
+    ctx.beginPath(); ctx.arc(0, 0, s, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#3a2c1c'; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(0, 0, s - 1, 0, TAU); ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,220,160,0.16)'; ctx.lineWidth = 1.2;
+    ctx.beginPath(); ctx.arc(0, 0, s - 2.5, -Math.PI * 0.72, -Math.PI * 0.18); ctx.stroke();
     ctx.fillStyle = c;
     ctx.strokeStyle = 'rgba(20,10,0,0.9)';
     ctx.lineWidth = 1.6;
