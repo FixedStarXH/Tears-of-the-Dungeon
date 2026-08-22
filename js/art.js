@@ -561,7 +561,8 @@ const Art = (function () {
     ctx.fillStyle = '#5a6b4a';
     ctx.strokeStyle = '#22301c';
     ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.ellipse(x, y + bob, 12 * s, 10 * s, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    blob(ctx, x, y + bob, 11 * s, e.seed + Game.time * 0.4, 9, 0.2); ctx.fill(); ctx.stroke();
+    sheen(ctx, x, y + bob, 8 * s, 7 * s, 0.28);
     ctx.fillStyle = '#b03028';
     ctx.beginPath(); ctx.arc(x, y + 8 * s + bob, 4 * s, 0, TAU); ctx.fill();
     ctx.fillStyle = '#fff';
@@ -576,10 +577,10 @@ const Art = (function () {
   function drawHorf(ctx, e) {
     drawEnemyShell(ctx, e);
     const x = e.x, y = e.y, s = e.r / 16;
-    ctx.fillStyle = '#7a5a38';
-    ctx.strokeStyle = '#33240f';
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(x, y, 16 * s, 0, TAU); ctx.fill(); ctx.stroke();
+    blob(ctx, x, y, 16 * s, e.seed + Game.time * 0.3, 9, 0.14);
+    ctx.fillStyle = '#7a5a38'; ctx.fill();
+    ctx.strokeStyle = '#33240f'; ctx.lineWidth = 3; ctx.stroke();
+    sheen(ctx, x, y, 11 * s, 11 * s, 0.3);
     ctx.fillStyle = '#e8e0cc';
     ctx.beginPath(); ctx.arc(x - 5 * s, y - 6 * s, 3 * s, 0, TAU); ctx.fill();
     ctx.beginPath(); ctx.arc(x + 5 * s, y - 6 * s, 3 * s, 0, TAU); ctx.fill();
@@ -617,10 +618,10 @@ const Art = (function () {
       ctx.fill(); ctx.stroke();
       ctx.restore();
     }
-    ctx.fillStyle = '#2e2a24';
-    ctx.strokeStyle = '#0e0c08';
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.ellipse(x, y, 11 * s, 9 * s, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    blob(ctx, x, y, 10 * s, e.seed + Game.time * 0.6, 9, 0.3);
+    ctx.fillStyle = '#2e2a24'; ctx.fill();
+    ctx.strokeStyle = '#0e0c08'; ctx.lineWidth = 3; ctx.stroke();
+    sheen(ctx, x, y, 7 * s, 6 * s, 0.2);
     ctx.fillStyle = '#ff5040';
     ctx.beginPath(); ctx.arc(x - 4 * s, y - 2 * s, 3 * s, 0, TAU); ctx.fill();
     ctx.beginPath(); ctx.arc(x + 4 * s, y - 2 * s, 3 * s, 0, TAU); ctx.fill();
@@ -646,10 +647,10 @@ const Art = (function () {
       ctx.fill(); ctx.stroke();
       ctx.restore();
     }
-    ctx.fillStyle = '#4a3a28';
-    ctx.strokeStyle = '#1e1408';
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(x, y, 12 * s, 0, TAU); ctx.fill(); ctx.stroke();
+    blob(ctx, x, y, 12 * s, e.seed + Game.time * 0.5, 9, 0.2);
+    ctx.fillStyle = '#4a3a28'; ctx.fill();
+    ctx.strokeStyle = '#1e1408'; ctx.lineWidth = 3; ctx.stroke();
+    sheen(ctx, x, y, 8 * s, 8 * s, 0.22);
     const g = ctx.createRadialGradient(x, y, 1, x, y, 9 * s);
     g.addColorStop(0, `rgba(255,120,40,${0.5 + pulse * 0.4})`);
     g.addColorStop(1, 'rgba(120,30,10,0)');
@@ -669,6 +670,7 @@ const Art = (function () {
     ctx.strokeStyle = '#23262a';
     ctx.lineWidth = 3;
     ctx.beginPath(); ctx.arc(x, y, 14 * s, 0, TAU); ctx.fill(); ctx.stroke();
+    sheen(ctx, x, y, 10 * s, 10 * s, 0.3);
     const sx = x + fx * 3 * s;
     ctx.fillStyle = '#4c5156';
     ctx.fillRect(sx - 8 * s, y - 9 * s, 16 * s, 14 * s);
@@ -692,12 +694,12 @@ const Art = (function () {
   function drawClotty(ctx, e) {
     drawEnemyShell(ctx, e);
     const x = e.x, y = e.y, s = e.r / 14;
-    ctx.fillStyle = '#a8322c';
-    ctx.strokeStyle = '#3a0f0c';
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(x, y, 13 * s, 0, TAU); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.arc(x - 8 * s, y + 2 * s, 6 * s, 0, TAU); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.arc(x + 8 * s, y + 1 * s, 5.5 * s, 0, TAU); ctx.fill(); ctx.stroke();
+    blob(ctx, x, y, 13 * s, e.seed + Game.time * 0.5, 8, 0.22);
+    ctx.fillStyle = '#a8322c'; ctx.fill();
+    ctx.strokeStyle = '#3a0f0c'; ctx.lineWidth = 3; ctx.stroke();
+    sheen(ctx, x, y, 9 * s, 9 * s, 0.3);
+    blob(ctx, x - 8 * s, y + 2 * s, 6 * s, e.seed + 2, 7, 0.3); ctx.fill(); ctx.stroke();
+    blob(ctx, x + 8 * s, y + 1 * s, 5.5 * s, e.seed + 4, 7, 0.3); ctx.fill(); ctx.stroke();
     ctx.fillStyle = '#fff';
     ctx.beginPath(); ctx.arc(x - 4 * s, y - 5 * s, 3.6 * s, 0, TAU); ctx.fill();
     ctx.beginPath(); ctx.arc(x + 4 * s, y - 5 * s, 3.6 * s, 0, TAU); ctx.fill();
@@ -719,16 +721,16 @@ const Art = (function () {
     ctx.save();
     ctx.translate(x, y);
     ctx.scale(sx, sy);
-    ctx.fillStyle = '#7fae5a';
-    ctx.strokeStyle = '#2a4018';
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.ellipse(0, 0, 12 * s, 11 * s, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    blob(ctx, 0, 0, 11.5 * s, e.seed + Game.time * 0.5, 9, 0.24);
+    ctx.fillStyle = '#7fae5a'; ctx.fill();
+    ctx.strokeStyle = '#2a4018'; ctx.lineWidth = 3; ctx.stroke();
     ctx.strokeStyle = '#3f6126';
     ctx.lineWidth = 2;
     for (let i = -1; i <= 1; i++) {
       ctx.beginPath(); ctx.moveTo(i * 4 * s, -9 * s); ctx.lineTo(i * 4 * s, 9 * s); ctx.stroke();
     }
     ctx.restore();
+    sheen(ctx, x, y, 9 * s, 8 * s, 0.26);
     ctx.fillStyle = '#fff';
     ctx.beginPath(); ctx.arc(x - 4 * s, y - 5 * s, 3.4 * s, 0, TAU); ctx.fill();
     ctx.beginPath(); ctx.arc(x + 4 * s, y - 5 * s, 3.4 * s, 0, TAU); ctx.fill();
@@ -746,10 +748,10 @@ const Art = (function () {
   function drawMaw(ctx, e) {
     drawEnemyShell(ctx, e);
     const x = e.x, y = e.y, s = e.r / 16;
-    ctx.fillStyle = '#6b3550';
-    ctx.strokeStyle = '#24101c';
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(x, y, 16 * s, 0, TAU); ctx.fill(); ctx.stroke();
+    blob(ctx, x, y, 16 * s, e.seed + Game.time * 0.4, 8, 0.18);
+    ctx.fillStyle = '#6b3550'; ctx.fill();
+    ctx.strokeStyle = '#24101c'; ctx.lineWidth = 3; ctx.stroke();
+    sheen(ctx, x, y, 11 * s, 11 * s, 0.32);
     const maw = 0.35 + (e.maw || 0.6) * 0.65;
     ctx.fillStyle = '#17060f';
     ctx.beginPath(); ctx.ellipse(x, y + 2 * s, 11 * s * maw, 9 * s * maw, 0, 0, TAU); ctx.fill();
@@ -769,12 +771,15 @@ const Art = (function () {
   function drawGlobin(ctx, e) {
     drawEnemyShell(ctx, e);
     const x = e.x, y = e.y, s = e.r / 13;
-    ctx.fillStyle = e.revived ? '#6aa43a' : '#8fc45a';
-    ctx.strokeStyle = e.revived ? '#2f4a14' : '#3c5c1e';
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.ellipse(x, y + 2 * s, 12 * s, 10 * s, 0, 0, TAU); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.arc(x - 7 * s, y + 3 * s, 4.5 * s, 0, TAU); ctx.fill(); ctx.stroke();
-    ctx.beginPath(); ctx.arc(x + 7 * s, y + 2 * s, 4 * s, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.save();
+    ctx.translate(x, y + 2 * s); ctx.scale(1.08, 0.9);
+    blob(ctx, 0, 0, 11 * s, e.seed + Game.time * 0.45, 9, 0.24);
+    ctx.fillStyle = e.revived ? '#6aa43a' : '#8fc45a'; ctx.fill();
+    ctx.strokeStyle = e.revived ? '#2f4a14' : '#3c5c1e'; ctx.lineWidth = 3; ctx.stroke();
+    blob(ctx, -7 * s, 1 * s, 4.5 * s, e.seed + 1, 7, 0.3); ctx.fill(); ctx.stroke();
+    blob(ctx, 7 * s, 0, 4 * s, e.seed + 2, 7, 0.3); ctx.fill(); ctx.stroke();
+    ctx.restore();
+    sheen(ctx, x, y - 1 * s, 8 * s, 7 * s, 0.3);
     ctx.fillStyle = '#fff';
     ctx.beginPath(); ctx.arc(x - 4 * s, y - 4 * s, 3.4 * s, 0, TAU); ctx.fill();
     ctx.beginPath(); ctx.arc(x + 4 * s, y - 4 * s, 3.4 * s, 0, TAU); ctx.fill();
@@ -791,10 +796,14 @@ const Art = (function () {
     const squash = e.squash || 0;
     const bw = 30 * s * (1 + squash * 0.4), bh = 30 * s * (1 - squash * 0.35);
     shadow(ctx, x, y + bh * 0.2, bw, bh);
-    ctx.fillStyle = '#8a5a3a';
-    ctx.strokeStyle = '#3a2410';
-    ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.ellipse(x, y, bw / 2, bh / 2, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(1 + squash * 0.4, 1 - squash * 0.35);
+    blob(ctx, 0, 0, 15 * s, e.seed + Game.time * 0.35, 10, 0.16);
+    ctx.fillStyle = '#8a5a3a'; ctx.fill();
+    ctx.strokeStyle = '#3a2410'; ctx.lineWidth = 4; ctx.stroke();
+    ctx.restore();
+    sheen(ctx, x, y, 20 * s, 20 * s, 0.3);
     ctx.fillStyle = '#e8e0cc';
     ctx.beginPath(); ctx.arc(x - 9 * s, y - 12 * s, 5 * s, 0, TAU); ctx.fill();
     ctx.beginPath(); ctx.arc(x + 9 * s, y - 12 * s, 5 * s, 0, TAU); ctx.fill();
@@ -833,10 +842,13 @@ const Art = (function () {
       ctx.fill(); ctx.stroke();
       ctx.restore();
     }
-    ctx.fillStyle = '#4a4638';
-    ctx.strokeStyle = '#141208';
-    ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.ellipse(x, y + bob, 24 * s, 20 * s, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.save();
+    ctx.translate(x, y + bob); ctx.scale(1.2, 1);
+    blob(ctx, 0, 0, 20 * s, e.seed + Game.time * 0.4, 10, 0.15);
+    ctx.fillStyle = '#4a4638'; ctx.fill();
+    ctx.strokeStyle = '#141208'; ctx.lineWidth = 4; ctx.stroke();
+    ctx.restore();
+    sheen(ctx, x, y + bob, 17 * s, 15 * s, 0.3);
     ctx.fillStyle = '#6a5a30';
     for (let i = 0; i < 5; i++) {
       const a = i / 5 * TAU;
@@ -895,10 +907,10 @@ const Art = (function () {
   function drawMomEye(ctx, e) {
     drawEnemyShell(ctx, e);
     const x = e.x, y = e.y, s = e.r / 16;
-    ctx.fillStyle = '#8a5a3a';
-    ctx.strokeStyle = '#3a2410';
-    ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.arc(x, y, 18 * s, 0, TAU); ctx.fill(); ctx.stroke();
+    blob(ctx, x, y, 18 * s, e.seed + Game.time * 0.3, 10, 0.12);
+    ctx.fillStyle = '#8a5a3a'; ctx.fill();
+    ctx.strokeStyle = '#3a2410'; ctx.lineWidth = 4; ctx.stroke();
+    sheen(ctx, x, y, 13 * s, 13 * s, 0.3);
     ctx.fillStyle = '#e8e0cc';
     ctx.beginPath(); ctx.arc(x, y, 13 * s, 0, TAU); ctx.fill();
     const ex = x + clamp((Game.player.x - x) * 0.06, -7 * s, 7 * s);
@@ -919,19 +931,18 @@ const Art = (function () {
     for (let i = segs.length - 1; i >= 1; i--) { // 0 段与头部位置重合，跳过
       const sg = segs[i];
       const r = 13 - i * 1.5;
-      ctx.fillStyle = colors[i % colors.length];
-      ctx.strokeStyle = '#2a3a10';
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(sg.x, sg.y, r, 0, TAU); ctx.fill(); ctx.stroke();
+      blob(ctx, sg.x, sg.y, r, e.seed + i * 3 + Game.time * 0.3, 8, 0.2);
+      ctx.fillStyle = colors[i % colors.length]; ctx.fill();
+      ctx.strokeStyle = '#2a3a10'; ctx.lineWidth = 3; ctx.stroke();
       ctx.strokeStyle = '#3c5418';
       ctx.lineWidth = 1.5;
       ctx.beginPath(); ctx.ellipse(sg.x, sg.y, r * 0.6, r * 0.35, 0, 0, TAU); ctx.stroke();
     }
     // 头部
-    ctx.fillStyle = '#a8c848';
-    ctx.strokeStyle = '#2a3a10';
-    ctx.lineWidth = 3;
-    ctx.beginPath(); ctx.arc(x, y, 18, 0, TAU); ctx.fill(); ctx.stroke();
+    blob(ctx, x, y, 18, e.seed + Game.time * 0.4, 9, 0.14);
+    ctx.fillStyle = '#a8c848'; ctx.fill();
+    ctx.strokeStyle = '#2a3a10'; ctx.lineWidth = 3; ctx.stroke();
+    sheen(ctx, x, y, 13, 13, 0.32);
     ctx.fillStyle = '#fff';
     ctx.beginPath(); ctx.arc(x - 6, y - 4, 4, 0, TAU); ctx.fill();
     ctx.beginPath(); ctx.arc(x + 6, y - 4, 4, 0, TAU); ctx.fill();
@@ -950,10 +961,10 @@ const Art = (function () {
     drawEnemyShell(ctx, e);
     const x = e.x, y = e.y, s = e.r / 42;
     shadow(ctx, x + 4, y + 6, e.r * 1.2, e.r * 0.5);
-    ctx.fillStyle = '#c0544a';
-    ctx.strokeStyle = '#3a1010';
-    ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.arc(x, y, 40 * s, 0, TAU); ctx.fill(); ctx.stroke();
+    blob(ctx, x, y, 40 * s, e.seed, 11, 0.1);
+    ctx.fillStyle = '#c0544a'; ctx.fill();
+    ctx.strokeStyle = '#3a1010'; ctx.lineWidth = 4; ctx.stroke();
+    sheen(ctx, x, y, 28 * s, 28 * s, 0.28);
     ctx.fillStyle = '#a8453c';
     for (const [ox, oy, or] of [[-24, -14, 9], [20, -20, 8], [26, 12, 10], [-18, 22, 7], [6, 26, 6]]) {
       ctx.beginPath(); ctx.arc(x + ox * s, y + oy * s, or * s, 0, TAU); ctx.fill(); ctx.stroke();
@@ -986,10 +997,10 @@ const Art = (function () {
     const charge = e.maw || 0;
     const ang = Math.atan2(Game.player.y - y, Game.player.x - x);
     shadow(ctx, x + 3, y + 5, e.r * 1.9, e.r * 0.8);
-    ctx.fillStyle = '#7a6a4a';
-    ctx.strokeStyle = '#2e2412';
-    ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.arc(x, y, 17 * s, 0, TAU); ctx.fill(); ctx.stroke();
+    blob(ctx, x, y, 17 * s, e.seed + Game.time * 0.2, 10, 0.13);
+    ctx.fillStyle = '#7a6a4a'; ctx.fill();
+    ctx.strokeStyle = '#2e2412'; ctx.lineWidth = 4; ctx.stroke();
+    sheen(ctx, x, y, 12 * s, 12 * s, 0.22);
     // 眼皮褶皱
     ctx.strokeStyle = '#3a2e18';
     ctx.lineWidth = 2;
@@ -1027,10 +1038,9 @@ const Art = (function () {
     for (let i = segs.length - 1; i >= 1; i--) {
       const sg = segs[i];
       const r = 15 - i * 2.2;
-      ctx.fillStyle = colors[(i - 1) % colors.length];
-      ctx.strokeStyle = '#2a1008';
-      ctx.lineWidth = 3;
-      ctx.beginPath(); ctx.arc(sg.x, sg.y, r, 0, TAU); ctx.fill(); ctx.stroke();
+      blob(ctx, sg.x, sg.y, r, e.seed + i * 2.6, 8, 0.2);
+      ctx.fillStyle = colors[(i - 1) % colors.length]; ctx.fill();
+      ctx.strokeStyle = '#2a1008'; ctx.lineWidth = 3; ctx.stroke();
       // 背刺
       ctx.fillStyle = '#f2e0c0';
       for (const [ox, oy, rot] of [[-5, -r, -0.5], [5, -r, 0.5]]) {
@@ -1044,10 +1054,14 @@ const Art = (function () {
     // 头部（蓄力压缩变扁、冲刺时拉长）
     const headW = (1 + Math.max(0, squash) * 0.35) * 22;
     const headH = (1 - Math.max(0, squash) * 0.25) * 22;
-    ctx.fillStyle = '#c05a40';
-    ctx.strokeStyle = '#2a1008';
-    ctx.lineWidth = 4;
-    ctx.beginPath(); ctx.ellipse(x, y, headW, headH, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(headW / 22, headH / 22);
+    blob(ctx, 0, 0, 11, e.seed + Game.time * 0.3, 9, 0.16);
+    ctx.fillStyle = '#c05a40'; ctx.fill();
+    ctx.strokeStyle = '#2a1008'; ctx.lineWidth = 4; ctx.stroke();
+    ctx.restore();
+    sheen(ctx, x, y, 15, 15, 0.3);
     // 血盆大口（朝向玩家）
     const fa = Math.atan2(Game.player.y - y, Game.player.x - x);
     const mx = x + Math.cos(fa) * 13, my = y + Math.sin(fa) * 13;
@@ -1084,10 +1098,14 @@ const Art = (function () {
     const bw = 32 * s * (1 + squash * 0.4), bh = 32 * s * (1 - squash * 0.35);
     shadow(ctx, x, y + bh * 0.2, bw, bh);
     const enrage = e.hp < e.maxHp * 0.5;
-    ctx.fillStyle = enrage ? '#9a2c1e' : '#8a4232';
-    ctx.strokeStyle = '#2a0f06';
-    ctx.lineWidth = 5;
-    ctx.beginPath(); ctx.ellipse(x, y, bw / 2, bh / 2, 0, 0, TAU); ctx.fill(); ctx.stroke();
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(1 + squash * 0.4, 1 - squash * 0.35);
+    blob(ctx, 0, 0, 16 * s, e.seed, 11, 0.12);
+    ctx.fillStyle = enrage ? '#9a2c1e' : '#8a4232'; ctx.fill();
+    ctx.strokeStyle = '#2a0f06'; ctx.lineWidth = 5; ctx.stroke();
+    ctx.restore();
+    sheen(ctx, x, y, 22 * s, 22 * s, 0.28);
     // 背刺/角
     ctx.fillStyle = '#f2dcc0';
     for (const [ox, oy, rot] of [[-20, -22, -0.7], [0, -26, 0], [20, -22, 0.7]]) {
