@@ -18,21 +18,19 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-body {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 #stage {
   position: relative;
   width: 900px;
   height: 540px;
   transform-origin: top left;
-  flex: 0 0 auto;
   border-radius: 6px;
   overflow: hidden;
   box-shadow: 0 0 0 3px #1d1409, 0 0 42px 8px rgba(0, 0, 0, .9), 0 0 120px 20px rgba(120, 20, 20, .09);
+}
+
+/* 定位交给 js/main.js 的 fitStage（绝对 left/top + transform:scale），勿用 flex 居中 */
+body {
+  position: relative;
 }
 
 canvas#game {
